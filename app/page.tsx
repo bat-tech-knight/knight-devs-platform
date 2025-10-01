@@ -19,11 +19,17 @@ export default function Home() {
               <Link href={"/flask-test"} className="text-blue-600 hover:text-blue-800">
                 Flask API Test
               </Link>
+              <Link href={"/antd-demo"} className="text-blue-600 hover:text-blue-800">
+                Antd Demo
+              </Link>
               <div className="flex items-center gap-2">
                 <DeployButton />
               </div>
             </div>
-            {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
+            <div className="flex items-center gap-3">
+              <ThemeSwitcher />
+              {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
+            </div>
           </div>
         </nav>
         <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">

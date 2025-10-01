@@ -1,13 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Button, Dropdown, Space } from "antd";
 import { Laptop, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
@@ -27,51 +20,72 @@ const ThemeSwitcher = () => {
 
   const ICON_SIZE = 16;
 
+  const items = [
+    {
+      key: "light",
+      label: (
+        <Space>
+          <Sun size={ICON_SIZE} />
+          <span>Light</span>
+        </Space>
+      ),
+    },
+    {
+      key: "dark",
+      label: (
+        <Space>
+          <Moon size={ICON_SIZE} />
+          <span>Dark</span>
+        </Space>
+      ),
+    },
+    {
+      key: "system",
+      label: (
+        <Space>
+          <Laptop size={ICON_SIZE} />
+          <span>System</span>
+        </Space>
+      ),
+    },
+  ];
+
+  const getCurrentIcon = () => {
+    switch (theme) {
+      case "light":
+        return <Sun size={ICON_SIZE} />;
+      case "dark":
+        return <Moon size={ICON_SIZE} />;
+      default:
+        return <Laptop size={ICON_SIZE} />;
+    }
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size={"sm"}>
-          {theme === "light" ? (
-            <Sun
-              key="light"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
-            />
-          ) : theme === "dark" ? (
-            <Moon
-              key="dark"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
-            />
-          ) : (
-            <Laptop
-              key="system"
-              size={ICON_SIZE}
-              className={"text-muted-foreground"}
-            />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="w-content" align="start">
-        <DropdownMenuRadioGroup
-          value={theme}
-          onValueChange={(e) => setTheme(e)}
-        >
-          <DropdownMenuRadioItem className="flex gap-2" value="light">
-            <Sun size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>Light</span>
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="dark">
-            <Moon size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>Dark</span>
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem className="flex gap-2" value="system">
-            <Laptop size={ICON_SIZE} className="text-muted-foreground" />{" "}
-            <span>System</span>
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Dropdown
+      menu={{
+        items,
+        onClick: ({ key }) => setTheme(key),
+        selectedKeys: [theme || "system"],
+      }}
+      trigger={["click"]}
+      placement="bottomRight"
+    >
+      <Button
+        type="text"
+        size="small"
+        icon={getCurrentIcon()}
+        className="flex items-center justify-center hover:bg-accent/50 transition-colors"
+        style={{
+          color: "hsl(var(--foreground))",
+          border: "1px solid hsl(var(--border))",
+          borderRadius: "var(--radius)",
+          minWidth: "36px",
+          height: "36px",
+        }}
+        title={`Current theme: ${theme || "system"}`}
+      />
+    </Dropdown>
   );
 };
 
