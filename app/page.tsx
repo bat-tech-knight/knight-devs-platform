@@ -22,6 +22,9 @@ export default function Home() {
               <Link href={"/antd-demo"} className="text-blue-600 hover:text-blue-800">
                 Antd Demo
               </Link>
+              <Link href={"/graphql-demo"} className="text-blue-600 hover:text-blue-800">
+                GraphQL Demo
+              </Link>
               <div className="flex items-center gap-2">
                 <DeployButton />
               </div>

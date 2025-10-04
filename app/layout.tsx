@@ -4,6 +4,7 @@ import { Geist } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
 import AntdThemeProvider from "@/components/antd-theme-provider";
+import { ApolloWrapper } from "@/lib/apollo/ApolloWrapper";
 import "antd/dist/reset.css";
 import "./globals.css";
 
@@ -39,7 +40,9 @@ export default function RootLayout({
         >
           <AntdRegistry>
             <AntdThemeProvider>
-              {children}
+              <ApolloWrapper>
+                {children}
+              </ApolloWrapper>
             </AntdThemeProvider>
           </AntdRegistry>
         </ThemeProvider>
