@@ -11,7 +11,9 @@ import {
   Calendar,
   MapPin,
   Search,
-  Settings
+  Settings,
+  BarChart3,
+  Eye
 } from "lucide-react";
 import { 
   Select as AntSelect, 
@@ -25,8 +27,89 @@ import {
   Row,
   Col
 } from "antd";
+import { JobResults } from "./job-results";
+import { updateScrapingConfig } from "./job-hooks";
 
 const { Title, Text } = Typography;
+
+// Country options for Indeed (based on jobspy Country enum)
+const COUNTRY_OPTIONS = [
+  { label: 'United States', value: 'usa' },
+  { label: 'United Kingdom', value: 'uk' },
+  { label: 'Canada', value: 'canada' },
+  { label: 'Australia', value: 'australia' },
+  { label: 'Germany', value: 'germany' },
+  { label: 'France', value: 'france' },
+  { label: 'Netherlands', value: 'netherlands' },
+  { label: 'India', value: 'india' },
+  { label: 'Singapore', value: 'singapore' },
+  { label: 'Japan', value: 'japan' },
+  { label: 'Brazil', value: 'brazil' },
+  { label: 'Mexico', value: 'mexico' },
+  { label: 'Spain', value: 'spain' },
+  { label: 'Italy', value: 'italy' },
+  { label: 'Sweden', value: 'sweden' },
+  { label: 'Norway', value: 'norway' },
+  { label: 'Denmark', value: 'denmark' },
+  { label: 'Finland', value: 'finland' },
+  { label: 'Switzerland', value: 'switzerland' },
+  { label: 'Austria', value: 'austria' },
+  { label: 'Belgium', value: 'belgium' },
+  { label: 'Ireland', value: 'ireland' },
+  { label: 'New Zealand', value: 'new zealand' },
+  { label: 'South Africa', value: 'south africa' },
+  { label: 'Argentina', value: 'argentina' },
+  { label: 'Chile', value: 'chile' },
+  { label: 'Colombia', value: 'colombia' },
+  { label: 'Peru', value: 'peru' },
+  { label: 'Ecuador', value: 'ecuador' },
+  { label: 'Uruguay', value: 'uruguay' },
+  { label: 'Venezuela', value: 'venezuela' },
+  { label: 'Costa Rica', value: 'costa rica' },
+  { label: 'Panama', value: 'panama' },
+  { label: 'China', value: 'china' },
+  { label: 'Hong Kong', value: 'hong kong' },
+  { label: 'Taiwan', value: 'taiwan' },
+  { label: 'South Korea', value: 'south korea' },
+  { label: 'Thailand', value: 'thailand' },
+  { label: 'Malaysia', value: 'malaysia' },
+  { label: 'Indonesia', value: 'indonesia' },
+  { label: 'Philippines', value: 'philippines' },
+  { label: 'Vietnam', value: 'vietnam' },
+  { label: 'Pakistan', value: 'pakistan' },
+  { label: 'Bangladesh', value: 'bangladesh' },
+  { label: 'Sri Lanka', value: 'sri lanka' },
+  { label: 'Nepal', value: 'nepal' },
+  { label: 'Turkey', value: 'turkey' },
+  { label: 'Israel', value: 'israel' },
+  { label: 'United Arab Emirates', value: 'united arab emirates' },
+  { label: 'Saudi Arabia', value: 'saudi arabia' },
+  { label: 'Qatar', value: 'qatar' },
+  { label: 'Kuwait', value: 'kuwait' },
+  { label: 'Bahrain', value: 'bahrain' },
+  { label: 'Oman', value: 'oman' },
+  { label: 'Egypt', value: 'egypt' },
+  { label: 'Morocco', value: 'morocco' },
+  { label: 'Nigeria', value: 'nigeria' },
+  { label: 'Kenya', value: 'kenya' },
+  { label: 'Ghana', value: 'ghana' },
+  { label: 'Poland', value: 'poland' },
+  { label: 'Czech Republic', value: 'czech republic' },
+  { label: 'Hungary', value: 'hungary' },
+  { label: 'Romania', value: 'romania' },
+  { label: 'Bulgaria', value: 'bulgaria' },
+  { label: 'Croatia', value: 'croatia' },
+  { label: 'Slovenia', value: 'slovenia' },
+  { label: 'Slovakia', value: 'slovakia' },
+  { label: 'Estonia', value: 'estonia' },
+  { label: 'Latvia', value: 'latvia' },
+  { label: 'Lithuania', value: 'lithuania' },
+  { label: 'Luxembourg', value: 'luxembourg' },
+  { label: 'Malta', value: 'malta' },
+  { label: 'Cyprus', value: 'cyprus' },
+  { label: 'Greece', value: 'greece' },
+  { label: 'Ukraine', value: 'ukraine' },
+];
 
 interface ScrapingConfig {
   id: string;
@@ -237,12 +320,14 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
   const [configs, setConfigs] = useState<ScrapingConfig[]>(initialConfigs);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [viewingResultsId, setViewingResultsId] = useState<string | null>(null);
   const [formData, setFormData] = useState<Partial<ScrapingConfig>>({
     name: "",
     search_term: "",
     location: "",
     sites: [],
     results_wanted: 10,
+    country_indeed: "usa", // Default to USA
     is_remote: false,
     easy_apply: false,
     linkedin_fetch_description: false,
@@ -269,6 +354,18 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
 
   // Create new config
   const handleCreate = async () => {
+    // Validate required fields
+    if (!formData.name || !formData.search_term) {
+      alert("Please fill in all required fields (Name, Search Term)");
+      return;
+    }
+
+    // Validate country for Indeed
+    if (formData.sites?.includes('indeed') && !formData.country_indeed) {
+      alert("Country is required when using Indeed");
+      return;
+    }
+
     try {
       const response = await fetch("/api/admin/scraping-config", {
         method: "POST",
@@ -286,6 +383,7 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
           location: "",
           sites: [],
           results_wanted: 10,
+          country_indeed: "usa", // Default to USA
           is_remote: false,
           easy_apply: false,
           linkedin_fetch_description: false,
@@ -303,25 +401,28 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
     }
   };
 
-  // Update config
+  // Update config (via Supabase client)
   const handleUpdate = async (id: string) => {
-    try {
-      const response = await fetch(`/api/admin/scraping-config/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+    // Validate required fields
+    if (!formData.name || !formData.search_term) {
+      alert("Please fill in all required fields (Name, Search Term)");
+      return;
+    }
 
-      if (response.ok) {
-        const updatedConfig = await response.json();
-        setConfigs(prev => prev.map(c => c.id === editingId ? updatedConfig : c));
-        setEditingId(null);
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
-      }
-    } catch (error) {
+    // Validate country for Indeed
+    if (formData.sites?.includes('indeed') && !formData.country_indeed) {
+      alert("Country is required when using Indeed");
+      return;
+    }
+
+    try {
+      const updatedConfig = await updateScrapingConfig(id, formData as Record<string, unknown>);
+      setConfigs(prev => prev.map(c => c.id === id ? updatedConfig : c));
+      setEditingId(null);
+    } catch (error: unknown) {
       console.error("Error updating config:", error);
+      const message = error instanceof Error ? error.message : 'Failed to update configuration';
+      alert(`Error: ${message}`);
     }
   };
 
@@ -375,12 +476,14 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
   const cancelEdit = () => {
     setEditingId(null);
     setIsCreating(false);
+    setViewingResultsId(null);
     setFormData({
       name: "",
       search_term: "",
       location: "",
       sites: [],
       results_wanted: 10,
+      country_indeed: "usa", // Default to USA
       is_remote: false,
       easy_apply: false,
       linkedin_fetch_description: false,
@@ -389,6 +492,10 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
       log_level: 2,
       is_active: true,
     });
+  };
+
+  const viewResults = (config: ScrapingConfig) => {
+    setViewingResultsId(config.id);
   };
 
   return (
@@ -461,16 +568,6 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                     </Col>
                     <Col xs={24} md={12}>
                       <Space direction="vertical" style={{ width: '100%' }}>
-                        <Text strong>Location</Text>
-                        <Input
-                          value={formData.location || ""}
-                          onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                          placeholder="e.g., New York, NY"
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <Space direction="vertical" style={{ width: '100%' }}>
                         <Text strong>Results Wanted</Text>
                         <Input
                           type="number"
@@ -525,15 +622,34 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                         Options available for {(formData.sites && formData.sites.length > 0) ? SITE_CONFIGS.find(s => s.id === formData.sites![0])?.name : 'selected site'}
                       </Text>
                       <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
+                        {shouldShowField('location') && (
+                          <Col xs={24} md={12}>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                              <Text strong>Location (Optional)</Text>
+                              <Input
+                                value={formData.location || ""}
+                                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                                placeholder="e.g., New York, NY"
+                              />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Optional - location filtering for this site
+                              </Text>
+                            </Space>
+                          </Col>
+                        )}
+                        
                         {shouldShowField('job_type') && (
                           <Col xs={24} md={12}>
                             <Space direction="vertical" style={{ width: '100%' }}>
-                              <Text strong>Job Type</Text>
+                              <Text strong>Job Type (Optional)</Text>
                               <Input
                                 value={formData.job_type || ""}
                                 onChange={(e) => setFormData({ ...formData, job_type: e.target.value })}
                                 placeholder="e.g., Full-time, Part-time"
                               />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Optional - filter by job type
+                              </Text>
                             </Space>
                           </Col>
                         )}
@@ -541,12 +657,21 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                         {shouldShowField('country_indeed') && (
                           <Col xs={24} md={12}>
                             <Space direction="vertical" style={{ width: '100%' }}>
-                              <Text strong>Country (Indeed)</Text>
-                              <Input
-                                value={formData.country_indeed || ""}
-                                onChange={(e) => setFormData({ ...formData, country_indeed: e.target.value })}
-                                placeholder="e.g., US, UK, CA"
+                              <Text strong>Country (Indeed) <Text type="danger">*</Text></Text>
+                              <AntSelect
+                                placeholder="Select country..."
+                                value={formData.country_indeed || undefined}
+                                onChange={(value) => setFormData({ ...formData, country_indeed: value })}
+                                style={{ width: '100%' }}
+                                options={COUNTRY_OPTIONS}
+                                showSearch
+                                filterOption={(input, option) =>
+                                  (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                                }
                               />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Required for Indeed scraping
+                              </Text>
                             </Space>
                           </Col>
                         )}
@@ -554,13 +679,16 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                         {shouldShowField('distance') && (
                           <Col xs={24} md={12}>
                             <Space direction="vertical" style={{ width: '100%' }}>
-                              <Text strong>Distance (miles)</Text>
+                              <Text strong>Distance (Optional)</Text>
                               <Input
                                 type="number"
                                 value={formData.distance || ""}
                                 onChange={(e) => setFormData({ ...formData, distance: parseInt(e.target.value) })}
                                 placeholder="e.g., 25"
                               />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Optional - search radius in miles
+                              </Text>
                             </Space>
                           </Col>
                         )}
@@ -731,6 +859,12 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
               <Space>
                 <Button
                   size="small"
+                  onClick={() => viewResults(config)}
+                  icon={<Eye className="w-4 h-4" />}
+                  title="View Job Results"
+                />
+                <Button
+                  size="small"
                   onClick={() => handleToggleActive(config.id, config.is_active)}
                   icon={config.is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                 />
@@ -759,6 +893,44 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
             </Text>
           </div>
         </Card>
+      )}
+
+      {/* Job Results Modal */}
+      {viewingResultsId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50" 
+            onClick={() => setViewingResultsId(null)}
+          />
+          
+          {/* Modal */}
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-7xl w-full mx-4 max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <BarChart3 className="w-5 h-5" />
+                Job Results
+              </h2>
+              <button
+                onClick={() => setViewingResultsId(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            {/* Content */}
+            <div className="overflow-y-auto max-h-[80vh] p-6">
+              <JobResults 
+                configId={viewingResultsId} 
+                configName={configs.find(c => c.id === viewingResultsId)?.name || 'Unknown Configuration'}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

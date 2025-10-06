@@ -1,9 +1,13 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
+from job_scraper_service import JobScraperService
 
 app = Flask(__name__)
 CORS(app)
+
+# Initialize job scraper service
+job_scraper = JobScraperService()
 
 # Enable CORS for all routes
 @app.after_request
@@ -68,6 +72,206 @@ def python_example():
         'python_version': os.sys.version,
         'framework': 'Flask'
     })
+
+# Job Scraping Endpoints
+
+@app.route('/api/jobs/scrape', methods=['POST'])
+def scrape_jobs():
+    """
+    Scrape jobs from various job boards based on configuration
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Request body is required',
+                'error_type': 'missing_request_body'
+            }), 400
+        
+        # Log the incoming request for debugging
+        print(f"Received scraping request: {data}")
+        
+        # Perform job scraping
+        result = job_scraper.scrape_jobs(data)
+        
+        if result['success']:
+            return jsonify(result), 200
+        else:
+            # Return detailed error information
+            error_response = {
+                'success': False,
+                'error': result.get('error', 'Unknown error'),
+                'error_type': result.get('error_type', 'validation_error'),
+                'validation_errors': result.get('validation_errors', []),
+                'warnings': result.get('warnings', []),
+                'received_config': data,
+                'supported_sites': job_scraper.get_supported_sites(),
+                'supported_countries': job_scraper.get_supported_countries(),
+                'supported_job_types': job_scraper.get_supported_job_types()
+            }
+            return jsonify(error_response), 400
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal server error: {str(e)}',
+            'error_type': 'server_error',
+            'exception_type': type(e).__name__
+        }), 500
+
+@app.route('/api/jobs/config/validate', methods=['POST'])
+def validate_scraping_config():
+    """
+    Validate job scraping configuration without performing the actual scraping
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Request body is required',
+                'error_type': 'missing_request_body'
+            }), 400
+        
+        # Log the incoming validation request for debugging
+        print(f"Received validation request: {data}")
+        
+        # Validate configuration
+        validation_result = job_scraper.validate_scraping_config(data)
+        
+        # Enhanced response with detailed information
+        response = {
+            'success': True,
+            'validation_result': validation_result,
+            'received_config': data,
+            'supported_sites': job_scraper.get_supported_sites(),
+            'supported_countries': job_scraper.get_supported_countries(),
+            'supported_job_types': job_scraper.get_supported_job_types(),
+            'validation_summary': {
+                'is_valid': validation_result['is_valid'],
+                'error_count': len(validation_result['errors']),
+                'warning_count': len(validation_result['warnings']),
+                'has_errors': len(validation_result['errors']) > 0,
+                'has_warnings': len(validation_result['warnings']) > 0
+            }
+        }
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal server error: {str(e)}',
+            'error_type': 'server_error',
+            'exception_type': type(e).__name__
+        }), 500
+
+@app.route('/api/jobs/sites', methods=['GET'])
+def get_supported_sites():
+    """
+    Get list of supported job sites
+    """
+    try:
+        sites = job_scraper.get_supported_sites()
+        return jsonify({
+            'success': True,
+            'sites': sites,
+            'count': len(sites)
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal server error: {str(e)}'
+        }), 500
+
+@app.route('/api/jobs/countries', methods=['GET'])
+def get_supported_countries():
+    """
+    Get list of supported countries
+    """
+    try:
+        countries = job_scraper.get_supported_countries()
+        return jsonify({
+            'success': True,
+            'countries': countries,
+            'count': len(countries)
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal server error: {str(e)}'
+        }), 500
+
+@app.route('/api/jobs/job-types', methods=['GET'])
+def get_supported_job_types():
+    """
+    Get list of supported job types
+    """
+    try:
+        job_types = job_scraper.get_supported_job_types()
+        return jsonify({
+            'success': True,
+            'job_types': job_types,
+            'count': len(job_types)
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal server error: {str(e)}'
+        }), 500
+
+@app.route('/api/jobs/stats', methods=['GET'])
+def get_scraping_stats():
+    """
+    Get statistics about supported scraping options
+    """
+    try:
+        stats = job_scraper.get_scraping_stats()
+        return jsonify({
+            'success': True,
+            'stats': stats
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal server error: {str(e)}'
+        }), 500
+
+@app.route('/api/jobs/example-config', methods=['GET'])
+def get_example_config():
+    """
+    Get an example configuration for job scraping
+    """
+    try:
+        example_config = {
+            'site_name': 'indeed',
+            'search_term': 'python developer',
+            'location': 'New York, NY',
+            'country_indeed': 'usa',
+            'job_type': 'fulltime',
+            'results_wanted': 10,
+            'distance': 25,
+            'is_remote': False,
+            'easy_apply': None,
+            'linkedin_fetch_description': False,
+            'enforce_annual_salary': False,
+            'offset': 0,
+            'hours_old': None
+        }
+        
+        return jsonify({
+            'success': True,
+            'example_config': example_config,
+            'description': 'This is an example configuration for job scraping. Modify the values as needed.'
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Internal server error: {str(e)}'
+        }), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
