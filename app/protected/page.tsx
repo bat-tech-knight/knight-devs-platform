@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
-
 import { createClient } from "@/lib/supabase/server";
 import { InfoIcon } from "lucide-react";
-import { FetchDataSteps } from "@/components/tutorial/fetch-data-steps";
+import Link from "next/link";
 
 export default async function ProtectedPage() {
   const supabase = await createClient();
@@ -28,8 +27,26 @@ export default async function ProtectedPage() {
         </pre>
       </div>
       <div>
-        <h2 className="font-bold text-2xl mb-4">Next steps</h2>
-        <FetchDataSteps />
+        <h2 className="font-bold text-2xl mb-4">Welcome to Knight Devs Platform</h2>
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            You are now authenticated and can access the platform features.
+          </p>
+          <div className="flex gap-4">
+            <Link 
+              href="/admin" 
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Go to Admin Dashboard
+            </Link>
+            <Link 
+              href="/" 
+              className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Back to Home
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   );

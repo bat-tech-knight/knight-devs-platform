@@ -1,0 +1,92 @@
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { Card, Typography, Space, Row, Col, Tag } from "antd";
+import { Users, Clock, Settings } from "lucide-react";
+
+const { Title, Text } = Typography;
+
+export default async function UsersPage() {
+  const supabase = await createClient();
+
+  // Check if user is authenticated
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/auth/login");
+  }
+
+  // Check if user is admin
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (error || !profile || profile.role !== 'admin') {
+    redirect("/protected");
+  }
+
+  return (
+    <div style={{ padding: '24px' }}>
+      <Space direction="vertical" size="large" style={{ width: '100%' }}>
+        {/* Header */}
+        <Space align="center">
+          <Users className="w-8 h-8" style={{ color: '#52c41a' }} />
+          <div>
+            <Title level={1} style={{ margin: 0 }}>User Management</Title>
+            <Text type="secondary">
+              Manage user accounts, roles, and permissions.
+            </Text>
+          </div>
+        </Space>
+
+        {/* Coming Soon Banner */}
+        <Card style={{ background: '#fffbe6', border: '1px solid #ffe58f' }}>
+          <Space align="center">
+            <Clock className="w-6 h-6" style={{ color: '#faad14' }} />
+            <Space direction="vertical" size="small">
+              <Title level={4} style={{ margin: 0, color: '#faad14' }}>
+                Coming Soon
+              </Title>
+              <Text style={{ color: '#faad14' }}>
+                User management features are currently under development.
+              </Text>
+            </Space>
+          </Space>
+        </Card>
+
+        {/* Feature Preview Cards */}
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={12}>
+            <Card>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space align="center">
+                  <Users className="w-5 h-5" />
+                  <Title level={4} style={{ margin: 0 }}>User List</Title>
+                </Space>
+                <Text type="secondary">
+                  View and manage all registered users in the system.
+                </Text>
+                <Tag color="orange">Coming Soon</Tag>
+              </Space>
+            </Card>
+          </Col>
+
+          <Col xs={24} md={12}>
+            <Card>
+              <Space direction="vertical" style={{ width: '100%' }}>
+                <Space align="center">
+                  <Settings className="w-5 h-5" />
+                  <Title level={4} style={{ margin: 0 }}>Role Management</Title>
+                </Space>
+                <Text type="secondary">
+                  Assign and manage user roles and permissions.
+                </Text>
+                <Tag color="orange">Coming Soon</Tag>
+              </Space>
+            </Card>
+          </Col>
+        </Row>
+      </Space>
+    </div>
+  );
+}

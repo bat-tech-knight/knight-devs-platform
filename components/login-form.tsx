@@ -2,16 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button, Card, Input, Form } from "antd";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -49,61 +40,72 @@ export function LoginForm({
 
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Login</CardTitle>
-          <CardDescription>
-            Enter your email below to login to your account
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin}>
-            <div className="flex flex-col gap-6">
-              <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="m@example.com"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              <div className="grid gap-2">
-                <div className="flex items-center">
-                  <Label htmlFor="password">Password</Label>
-                  <Link
-                    href="/auth/forgot-password"
-                    className="ml-auto inline-block text-sm underline-offset-4 hover:underline"
-                  >
-                    Forgot your password?
-                  </Link>
-                </div>
-                <Input
-                  id="password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
-              </div>
-              {error && <p className="text-sm text-red-500">{error}</p>}
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Logging in..." : "Login"}
-              </Button>
-            </div>
-            <div className="mt-4 text-center text-sm">
-              Don&apos;t have an account?{" "}
+      <Card title="Login" className="w-full max-w-md mx-auto">
+        <p className="text-gray-600 mb-6">
+          Enter your email below to login to your account
+        </p>
+        <Form
+          layout="vertical"
+          onFinish={handleLogin}
+          className="space-y-4"
+        >
+          <Form.Item
+            label="Email"
+            name="email"
+            rules={[
+              { required: true, message: "Please input your email!" },
+              { type: "email", message: "Please enter a valid email!" }
+            ]}
+          >
+            <Input
+              placeholder="m@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </Form.Item>
+          
+          <Form.Item
+            label="Password"
+            name="password"
+            rules={[{ required: true, message: "Please input your password!" }]}
+            extra={
               <Link
-                href="/auth/sign-up"
-                className="underline underline-offset-4"
+                href="/auth/forgot-password"
+                className="text-sm text-blue-600 hover:underline"
               >
-                Sign up
+                Forgot your password?
               </Link>
-            </div>
-          </form>
-        </CardContent>
+            }
+          >
+            <Input.Password
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </Form.Item>
+          
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          
+          <Form.Item>
+            <Button 
+              type="primary" 
+              htmlType="submit" 
+              className="w-full" 
+              loading={isLoading}
+            >
+              {isLoading ? "Logging in..." : "Login"}
+            </Button>
+          </Form.Item>
+        </Form>
+        
+        <div className="mt-4 text-center text-sm">
+          Don&apos;t have an account?{" "}
+          <Link
+            href="/auth/sign-up"
+            className="text-blue-600 hover:underline"
+          >
+            Sign up
+          </Link>
+        </div>
       </Card>
     </div>
   );

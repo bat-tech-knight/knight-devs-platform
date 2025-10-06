@@ -2,16 +2,7 @@
 
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button, Card, Input, Form } from "antd";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -47,57 +38,62 @@ export function ForgotPasswordForm({
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       {success ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Check Your Email</CardTitle>
-            <CardDescription>Password reset instructions sent</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              If you registered using your email and password, you will receive
-              a password reset email.
-            </p>
-          </CardContent>
+        <Card title="Check Your Email" className="w-full max-w-md mx-auto">
+          <p className="text-gray-600 mb-4">Password reset instructions sent</p>
+          <p className="text-sm text-gray-500">
+            If you registered using your email and password, you will receive
+            a password reset email.
+          </p>
         </Card>
       ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl">Reset Your Password</CardTitle>
-            <CardDescription>
-              Type in your email and we&apos;ll send you a link to reset your
-              password
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleForgotPassword}>
-              <div className="flex flex-col gap-6">
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="m@example.com"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                {error && <p className="text-sm text-red-500">{error}</p>}
-                <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Sending..." : "Send reset email"}
-                </Button>
-              </div>
-              <div className="mt-4 text-center text-sm">
-                Already have an account?{" "}
-                <Link
-                  href="/auth/login"
-                  className="underline underline-offset-4"
-                >
-                  Login
-                </Link>
-              </div>
-            </form>
-          </CardContent>
+        <Card title="Reset Your Password" className="w-full max-w-md mx-auto">
+          <p className="text-gray-600 mb-6">
+            Type in your email and we&apos;ll send you a link to reset your
+            password
+          </p>
+          <Form
+            layout="vertical"
+            onFinish={handleForgotPassword}
+            className="space-y-4"
+          >
+            <Form.Item
+              label="Email"
+              name="email"
+              rules={[
+                { required: true, message: "Please input your email!" },
+                { type: "email", message: "Please enter a valid email!" }
+              ]}
+            >
+              <Input
+                placeholder="m@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Form.Item>
+            
+            {error && <p className="text-sm text-red-500">{error}</p>}
+            
+            <Form.Item>
+              <Button 
+                type="primary" 
+                htmlType="submit" 
+                className="w-full" 
+                loading={isLoading}
+              >
+                {isLoading ? "Sending..." : "Send reset email"}
+              </Button>
+            </Form.Item>
+          </Form>
+          
+          <div className="mt-4 text-center text-sm">
+            Already have an account?{" "}
+            <Link
+              href="/auth/login"
+              className="text-blue-600 hover:underline"
+            >
+              Login
+            </Link>
+          </div>
         </Card>
       )}
     </div>
