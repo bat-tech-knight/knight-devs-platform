@@ -113,11 +113,39 @@ def test_api_endpoints():
     except Exception as e:
         print(f"❌ Error: {str(e)}")
     
+    # Test 6.5: Test configuration without search_term (should be valid now)
+    print("\n6.5. Testing POST /api/jobs/config/validate without search_term")
+    test_config_no_search = {
+        "site_name": "jsjobbs",
+        "location": "Remote",
+        "results_wanted": 5
+    }
+    
+    try:
+        response = requests.post(
+            f"{BASE_URL}/api/jobs/config/validate",
+            json=test_config_no_search,
+            headers={'Content-Type': 'application/json'}
+        )
+        if response.status_code == 200:
+            data = response.json()
+            validation_result = data['validation_result']
+            if validation_result['is_valid']:
+                print(f"✅ Success: Configuration without search_term is valid")
+                if validation_result['warnings']:
+                    print(f"   Warnings: {validation_result['warnings']}")
+            else:
+                print(f"❌ Configuration validation failed:")
+                print(f"   Errors: {validation_result['errors']}")
+        else:
+            print(f"❌ Failed: {response.status_code} - {response.text}")
+    except Exception as e:
+        print(f"❌ Error: {str(e)}")
+    
     # Test 7: Test invalid configuration
     print("\n7. Testing POST /api/jobs/config/validate with invalid config")
     invalid_config = {
         "site_name": "invalid_site",
-        "search_term": "",  # Empty search term
         "results_wanted": -5  # Invalid negative number
     }
     

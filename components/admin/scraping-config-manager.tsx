@@ -25,10 +25,13 @@ import {
   Space,
   Typography,
   Row,
-  Col
+  Col,
+  message
 } from "antd";
 import { JobResults } from "./job-results";
 import { updateScrapingConfig } from "./job-hooks";
+import { createClient } from "@/lib/supabase/client";
+import { useJobExecution } from "./job-hooks";
 
 const { Title, Text } = Typography;
 
@@ -143,6 +146,7 @@ interface SiteConfig {
   name: string;
   description: string;
   fields: {
+    search_term: boolean;
     location: boolean;
     job_type: boolean;
     country_indeed: boolean;
@@ -162,6 +166,7 @@ const SITE_CONFIGS: SiteConfig[] = [
     name: 'Indeed',
     description: 'Job search engine',
     fields: {
+      search_term: true,
       location: true,
       job_type: true,
       country_indeed: true,
@@ -179,6 +184,7 @@ const SITE_CONFIGS: SiteConfig[] = [
     name: 'Glassdoor',
     description: 'Company reviews & jobs',
     fields: {
+      search_term: true,
       location: true,
       job_type: true,
       country_indeed: false,
@@ -196,6 +202,7 @@ const SITE_CONFIGS: SiteConfig[] = [
     name: 'LinkedIn',
     description: 'Professional network',
     fields: {
+      search_term: true,
       location: true,
       job_type: true,
       country_indeed: false,
@@ -213,6 +220,7 @@ const SITE_CONFIGS: SiteConfig[] = [
     name: 'ProductHunt',
     description: 'Product discovery',
     fields: {
+      search_term: true,
       location: false,
       job_type: false,
       country_indeed: false,
@@ -230,6 +238,7 @@ const SITE_CONFIGS: SiteConfig[] = [
     name: 'JSJobbs',
     description: 'JavaScript jobs',
     fields: {
+      search_term: true,
       location: true,
       job_type: false,
       country_indeed: false,
@@ -243,10 +252,47 @@ const SITE_CONFIGS: SiteConfig[] = [
     }
   },
   {
-    id: 'stackoverflow',
-    name: 'Stack Overflow',
-    description: 'Developer jobs',
+    id: 'zip_recruiter',
+    name: 'ZipRecruiter',
+    description: 'Job search platform',
     fields: {
+      search_term: true,
+      location: true,
+      job_type: true,
+      country_indeed: false,
+      google_search_term: false,
+      distance: true,
+      easy_apply: true,
+      linkedin_fetch_description: false,
+      linkedin_company_ids: false,
+      enforce_annual_salary: true,
+      hours_old: true,
+    }
+  },
+  {
+    id: 'google',
+    name: 'Google Jobs',
+    description: 'Google job search',
+    fields: {
+      search_term: true,
+      location: true,
+      job_type: true,
+      country_indeed: false,
+      google_search_term: true,
+      distance: true,
+      easy_apply: false,
+      linkedin_fetch_description: false,
+      linkedin_company_ids: false,
+      enforce_annual_salary: true,
+      hours_old: true,
+    }
+  },
+  {
+    id: 'bayt',
+    name: 'Bayt',
+    description: 'Middle East jobs',
+    fields: {
+      search_term: true,
       location: true,
       job_type: true,
       country_indeed: false,
@@ -260,10 +306,11 @@ const SITE_CONFIGS: SiteConfig[] = [
     }
   },
   {
-    id: 'angelist',
-    name: 'AngelList',
-    description: 'Startup jobs',
+    id: 'naukri',
+    name: 'Naukri',
+    description: 'Indian job portal',
     fields: {
+      search_term: true,
       location: true,
       job_type: true,
       country_indeed: false,
@@ -277,28 +324,12 @@ const SITE_CONFIGS: SiteConfig[] = [
     }
   },
   {
-    id: 'remoteok',
-    name: 'RemoteOK',
-    description: 'Remote jobs',
+    id: 'bdjobs',
+    name: 'BDJobs',
+    description: 'Bangladesh jobs',
     fields: {
-      location: false,
-      job_type: true,
-      country_indeed: false,
-      google_search_term: false,
-      distance: false,
-      easy_apply: false,
-      linkedin_fetch_description: false,
-      linkedin_company_ids: false,
-      enforce_annual_salary: true,
-      hours_old: true,
-    }
-  },
-  {
-    id: 'weworkremotely',
-    name: 'We Work Remotely',
-    description: 'Remote work',
-    fields: {
-      location: false,
+      search_term: true,
+      location: true,
       job_type: true,
       country_indeed: false,
       google_search_term: false,
@@ -321,6 +352,10 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [viewingResultsId, setViewingResultsId] = useState<string | null>(null);
+  const [executingConfigId, setExecutingConfigId] = useState<string | null>(null);
+  
+  // Use the proper job execution hook
+  const { isExecuting, executeScraping: executeScrapingHook } = useJobExecution();
   const [formData, setFormData] = useState<Partial<ScrapingConfig>>({
     name: "",
     search_term: "",
@@ -332,8 +367,6 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
     easy_apply: false,
     linkedin_fetch_description: false,
     enforce_annual_salary: false,
-    description_format: "markdown",
-    log_level: 2,
     is_active: true,
   });
 
@@ -355,63 +388,63 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
   // Create new config
   const handleCreate = async () => {
     // Validate required fields
-    if (!formData.name || !formData.search_term) {
-      alert("Please fill in all required fields (Name, Search Term)");
+    if (!formData.name) {
+      message.error("Please fill in the required field (Name)");
       return;
     }
 
     // Validate country for Indeed
     if (formData.sites?.includes('indeed') && !formData.country_indeed) {
-      alert("Country is required when using Indeed");
+      message.error("Country is required when using Indeed");
       return;
     }
 
     try {
-      const response = await fetch("/api/admin/scraping-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const supabase = createClient();
+      
+      const { data, error } = await supabase
+        .from('scraping_config')
+        .insert([formData])
+        .select()
+        .single();
 
-      if (response.ok) {
-        const newConfig = await response.json();
-        setConfigs(prev => [newConfig, ...prev]);
-        setIsCreating(false);
-        setFormData({
-          name: "",
-          search_term: "",
-          location: "",
-          sites: [],
-          results_wanted: 10,
-          country_indeed: "usa", // Default to USA
-          is_remote: false,
-          easy_apply: false,
-          linkedin_fetch_description: false,
-          enforce_annual_salary: false,
-          description_format: "markdown",
-          log_level: 2,
-          is_active: true,
-        });
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+      if (error) {
+        throw new Error(error.message);
       }
-    } catch (error) {
+
+      setConfigs(prev => [data, ...prev]);
+      setIsCreating(false);
+      setFormData({
+        name: "",
+        search_term: "",
+        location: "",
+        sites: [],
+        results_wanted: 10,
+        country_indeed: "usa", // Default to USA
+        is_remote: false,
+        easy_apply: false,
+        linkedin_fetch_description: false,
+        enforce_annual_salary: false,
+        is_active: true,
+      });
+    } catch (error: unknown) {
       console.error("Error creating config:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create configuration';
+      message.error(`Error: ${errorMessage}`);
     }
   };
 
   // Update config (via Supabase client)
   const handleUpdate = async (id: string) => {
     // Validate required fields
-    if (!formData.name || !formData.search_term) {
-      alert("Please fill in all required fields (Name, Search Term)");
+    if (!formData.name) {
+      message.error("Please fill in the required field (Name)");
       return;
     }
 
     // Validate country for Indeed
     if (formData.sites?.includes('indeed') && !formData.country_indeed) {
-      alert("Country is required when using Indeed");
+      message.error("Country is required when using Indeed");
       return;
     }
 
@@ -421,8 +454,8 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
       setEditingId(null);
     } catch (error: unknown) {
       console.error("Error updating config:", error);
-      const message = error instanceof Error ? error.message : 'Failed to update configuration';
-      alert(`Error: ${message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update configuration';
+      message.error(`Error: ${errorMessage}`);
     }
   };
 
@@ -433,38 +466,44 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
     }
 
     try {
-      const response = await fetch(`/api/admin/scraping-config/${id}`, {
-        method: "DELETE",
-      });
+      const supabase = createClient();
+      
+      const { error } = await supabase
+        .from('scraping_config')
+        .delete()
+        .eq('id', id);
 
-      if (response.ok) {
-        setConfigs(prev => prev.filter(c => c.id !== id));
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+      if (error) {
+        throw new Error(error.message);
       }
-    } catch (error) {
+
+      setConfigs(prev => prev.filter(c => c.id !== id));
+    } catch (error: unknown) {
       console.error("Error deleting config:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete configuration';
+      message.error(`Error: ${errorMessage}`);
     }
   };
 
   // Toggle active status
   const handleToggleActive = async (id: string, isActive: boolean) => {
     try {
-      const response = await fetch(`/api/admin/scraping-config/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_active: !isActive }),
-      });
+      const supabase = createClient();
+      
+      const { error } = await supabase
+        .from('scraping_config')
+        .update({ is_active: !isActive })
+        .eq('id', id);
 
-      if (response.ok) {
-        setConfigs(prev => prev.map(c => c.id === id ? { ...c, is_active: !isActive } : c));
-      } else {
-        const error = await response.json();
-        alert(`Error: ${error.error}`);
+      if (error) {
+        throw new Error(error.message);
       }
-    } catch (error) {
+
+      setConfigs(prev => prev.map(c => c.id === id ? { ...c, is_active: !isActive } : c));
+    } catch (error: unknown) {
       console.error("Error toggling active status:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to toggle active status';
+      message.error(`Error: ${errorMessage}`);
     }
   };
 
@@ -488,8 +527,6 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
       easy_apply: false,
       linkedin_fetch_description: false,
       enforce_annual_salary: false,
-      description_format: "markdown",
-      log_level: 2,
       is_active: true,
     });
   };
@@ -498,13 +535,28 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
     setViewingResultsId(config.id);
   };
 
+  const executeScraping = async (config: ScrapingConfig) => {
+    setExecutingConfigId(config.id);
+    try {
+      await executeScrapingHook(config.id);
+      console.log(`✅ Scraping completed successfully for "${config.name}"`);
+      message.success(`Scraping completed successfully for "${config.name}"!`);
+    } catch (error) {
+      console.error('❌ Error executing scraping:', error);
+      message.error(`Error executing scraping: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setExecutingConfigId(null);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Create New Config Button */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <Title level={3} style={{ margin: 0 }}>Scraping Configurations</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <Title level={4} style={{ margin: 0 }}>Scraping Configurations</Title>
         <Button
           type="primary"
+          size="small"
           onClick={() => setIsCreating(true)}
           icon={<Plus className="w-4 h-4" />}
         >
@@ -553,16 +605,6 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                           value={formData.name || ""}
                           onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                           placeholder="e.g., Senior Developer Jobs"
-                        />
-                      </Space>
-                    </Col>
-                    <Col xs={24} md={12}>
-                      <Space direction="vertical" style={{ width: '100%' }}>
-                        <Text strong>Search Term</Text>
-                        <Input
-                          value={formData.search_term || ""}
-                          onChange={(e) => setFormData({ ...formData, search_term: e.target.value })}
-                          placeholder="e.g., React Developer"
                         />
                       </Space>
                     </Col>
@@ -622,6 +664,22 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                         Options available for {(formData.sites && formData.sites.length > 0) ? SITE_CONFIGS.find(s => s.id === formData.sites![0])?.name : 'selected site'}
                       </Text>
                       <Row gutter={[16, 16]} style={{ marginTop: '16px' }}>
+                        {shouldShowField('search_term') && (
+                          <Col xs={24} md={12}>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                              <Text strong>Search Term (Optional)</Text>
+                              <Input
+                                value={formData.search_term || ""}
+                                onChange={(e) => setFormData({ ...formData, search_term: e.target.value })}
+                                placeholder="e.g., React Developer"
+                              />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Optional - search term for this site
+                              </Text>
+                            </Space>
+                          </Col>
+                        )}
+                        
                         {shouldShowField('location') && (
                           <Col xs={24} md={12}>
                             <Space direction="vertical" style={{ width: '100%' }}>
@@ -696,13 +754,16 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                         {shouldShowField('hours_old') && (
                           <Col xs={24} md={12}>
                             <Space direction="vertical" style={{ width: '100%' }}>
-                              <Text strong>Hours Old</Text>
+                              <Text strong>Hours Old (Optional)</Text>
                               <Input
                                 type="number"
                                 value={formData.hours_old || ""}
                                 onChange={(e) => setFormData({ ...formData, hours_old: parseInt(e.target.value) })}
                                 placeholder="e.g., 24"
                               />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Optional - filter jobs by age in hours
+                              </Text>
                             </Space>
                           </Col>
                         )}
@@ -758,37 +819,6 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                         </Col>
                       )}
                     </Row>
-                    
-                    <Row gutter={[16, 16]}>
-                      <Col xs={24} md={12}>
-                        <Space direction="vertical" style={{ width: '100%' }}>
-                          <Text strong>Description Format</Text>
-                          <AntSelect
-                            value={formData.description_format || "markdown"}
-                            onChange={(value) => setFormData({ ...formData, description_format: value })}
-                            style={{ width: '100%' }}
-                            options={[
-                              { label: "Markdown", value: "markdown" },
-                              { label: "HTML", value: "html" },
-                              { label: "Plain Text", value: "text" }
-                            ]}
-                          />
-                        </Space>
-                      </Col>
-                      
-                      <Col xs={24} md={12}>
-                        <Space direction="vertical" style={{ width: '100%' }}>
-                          <Text strong>Log Level</Text>
-                          <Input
-                            type="number"
-                            min="0"
-                            max="3"
-                            value={formData.log_level || 2}
-                            onChange={(e) => setFormData({ ...formData, log_level: parseInt(e.target.value) })}
-                          />
-                        </Space>
-                      </Col>
-                    </Row>
                   </Space>
                 </div>
               </div>
@@ -811,79 +841,121 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
         </div>
       )}
 
-      {/* Configurations List */}
-      <Space direction="vertical" style={{ width: '100%' }}>
+      {/* Configurations Grid */}
+      <Row gutter={[16, 16]}>
         {configs.map((config) => (
-          <Card key={config.id} size="small">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <Space direction="vertical" size="small" style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Title level={5} style={{ margin: 0 }}>{config.name}</Title>
+          <Col key={config.id} xs={24} sm={12} md={8} lg={6}>
+            <Card 
+              size="small" 
+              style={{ 
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column'
+              }}
+              bodyStyle={{ padding: '12px', flex: 1, display: 'flex', flexDirection: 'column' }}
+            >
+              {/* Header */}
+              <div style={{ marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                  <Text strong style={{ fontSize: '14px', margin: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {config.name}
+                  </Text>
                   <Tag color={config.is_active ? "green" : "default"}>
                     {config.is_active ? "Active" : "Inactive"}
                   </Tag>
                 </div>
                 
-                <Space size="large">
-                  <Space size="small">
-                    <Search className="w-4 h-4" />
-                    <Text type="secondary">{config.search_term}</Text>
-                  </Space>
-                  <Space size="small">
-                    <MapPin className="w-4 h-4" />
-                    <Text type="secondary">{config.location}</Text>
-                  </Space>
-                  <Space size="small">
-                    <Calendar className="w-4 h-4" />
-                    <Text type="secondary">{config.results_wanted} results</Text>
-                  </Space>
-                </Space>
-                
-                <Space wrap>
-                  {config.is_remote && <Tag color="blue">Remote</Tag>}
-                  {config.easy_apply && <Tag color="orange">Easy Apply</Tag>}
-                  {config.linkedin_fetch_description && <Tag color="purple">LinkedIn</Tag>}
-                  {config.enforce_annual_salary && <Tag color="red">Salary Required</Tag>}
-                </Space>
-                
-                <Space wrap>
-                  <Text type="secondary" style={{ fontSize: '12px' }}>Sites:</Text>
+                {/* Site Tags */}
+                <div style={{ marginBottom: '8px' }}>
                   {(config.sites || []).map((site: string) => (
-                    <Tag key={site} color="cyan" style={{ fontSize: '12px' }}>
+                    <Tag key={site} color="cyan" style={{ fontSize: '11px', margin: '1px' }}>
                       {site}
                     </Tag>
                   ))}
-                </Space>
-              </Space>
+                </div>
+              </div>
+
+              {/* Content */}
+              <div style={{ flex: 1 }}>
+                {/* Search Term */}
+                {config.search_term && (
+                  <div style={{ marginBottom: '4px' }}>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      <Search className="w-3 h-3" style={{ marginRight: '4px' }} />
+                      {config.search_term}
+                    </Text>
+                  </div>
+                )}
+                
+                {/* Location */}
+                {config.location && (
+                  <div style={{ marginBottom: '4px' }}>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      <MapPin className="w-3 h-3" style={{ marginRight: '4px' }} />
+                      {config.location}
+                    </Text>
+                  </div>
+                )}
+                
+                {/* Results Count */}
+                <div style={{ marginBottom: '8px' }}>
+                  <Text type="secondary" style={{ fontSize: '12px' }}>
+                    <Calendar className="w-3 h-3" style={{ marginRight: '4px' }} />
+                    {config.results_wanted} results
+                  </Text>
+                </div>
+
+                {/* Feature Tags */}
+                <div style={{ marginBottom: '12px' }}>
+                  {config.is_remote && <Tag color="blue" style={{ fontSize: '11px', margin: '1px' }}>Remote</Tag>}
+                  {config.easy_apply && <Tag color="orange" style={{ fontSize: '11px', margin: '1px' }}>Easy Apply</Tag>}
+                  {config.linkedin_fetch_description && <Tag color="purple" style={{ fontSize: '11px', margin: '1px' }}>LinkedIn</Tag>}
+                  {config.enforce_annual_salary && <Tag color="red" style={{ fontSize: '11px', margin: '1px' }}>Salary</Tag>}
+                </div>
+              </div>
               
-              <Space>
-                <Button
-                  size="small"
-                  onClick={() => viewResults(config)}
-                  icon={<Eye className="w-4 h-4" />}
-                  title="View Job Results"
-                />
-                <Button
-                  size="small"
-                  onClick={() => handleToggleActive(config.id, config.is_active)}
-                  icon={config.is_active ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                />
-                <Button
-                  size="small"
-                  onClick={() => startEdit(config)}
-                  icon={<Edit className="w-4 h-4" />}
-                />
-                <Button
-                  size="small"
-                  danger
-                  onClick={() => handleDelete(config.id)}
-                  icon={<Trash2 className="w-4 h-4" />}
-                />
-              </Space>
-            </div>
-          </Card>
+              {/* Action Buttons */}
+              <div style={{ marginTop: 'auto' }}>
+                <Space size="small" style={{ width: '100%', justifyContent: 'center' }}>
+                  <Button
+                    size="small"
+                    type="primary"
+                    loading={isExecuting && executingConfigId === config.id}
+                    onClick={() => executeScraping(config)}
+                    icon={<Play className="w-3 h-3" />}
+                    title="Execute Scraping"
+                  />
+                  <Button
+                    size="small"
+                    onClick={() => viewResults(config)}
+                    icon={<Eye className="w-3 h-3" />}
+                    title="View Job Results"
+                  />
+                  <Button
+                    size="small"
+                    onClick={() => handleToggleActive(config.id, config.is_active)}
+                    icon={config.is_active ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                    title={config.is_active ? "Pause" : "Activate"}
+                  />
+                  <Button
+                    size="small"
+                    onClick={() => startEdit(config)}
+                    icon={<Edit className="w-3 h-3" />}
+                    title="Edit"
+                  />
+                  <Button
+                    size="small"
+                    danger
+                    onClick={() => handleDelete(config.id)}
+                    icon={<Trash2 className="w-3 h-3" />}
+                    title="Delete"
+                  />
+                </Space>
+              </div>
+            </Card>
+          </Col>
         ))}
-      </Space>
+      </Row>
 
       {configs.length === 0 && (
         <Card>

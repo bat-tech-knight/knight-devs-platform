@@ -78,7 +78,7 @@ class BDJobs(Scraper):
 
         # Set up search parameters
         params = search_params.copy()
-        params["txtsearch"] = scraper_input.search_term
+        params["txtsearch"] = scraper_input.search_term or ""
 
         continue_search = lambda: len(job_list) < scraper_input.results_wanted
 

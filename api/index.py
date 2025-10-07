@@ -99,19 +99,32 @@ def scrape_jobs():
         if result['success']:
             return jsonify(result), 200
         else:
-            # Return detailed error information
+            # Return detailed error information with appropriate HTTP status
             error_response = {
                 'success': False,
                 'error': result.get('error', 'Unknown error'),
                 'error_type': result.get('error_type', 'validation_error'),
                 'validation_errors': result.get('validation_errors', []),
+                'scraping_errors': result.get('scraping_errors', []),
                 'warnings': result.get('warnings', []),
                 'received_config': data,
+                'config_used': result.get('config_used', {}),
+                'suggestion': result.get('suggestion', ''),
                 'supported_sites': job_scraper.get_supported_sites(),
                 'supported_countries': job_scraper.get_supported_countries(),
                 'supported_job_types': job_scraper.get_supported_job_types()
             }
-            return jsonify(error_response), 400
+            
+            # Determine appropriate HTTP status code based on error type
+            error_type = result.get('error_type', 'validation_error')
+            if error_type in ['site_blocking', 'scraping_error']:
+                status_code = 503  # Service Unavailable
+            elif error_type == 'validation_error':
+                status_code = 400  # Bad Request
+            else:
+                status_code = 500  # Internal Server Error
+                
+            return jsonify(error_response), status_code
             
     except Exception as e:
         return jsonify({

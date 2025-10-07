@@ -15,6 +15,7 @@ from jobspy.model import (
     Country,
 )
 from jobspy.util import create_logger, create_session
+from jobspy.bayt.constant import headers
 
 log = create_logger("Bayt")
 
@@ -37,6 +38,8 @@ class BaytScraper(Scraper):
         self.session = create_session(
             proxies=self.proxies, ca_cert=self.ca_cert, is_tls=False, has_retry=True
         )
+        # Add proper headers to avoid 403 errors
+        self.session.headers.update(headers)
         job_list: list[JobPost] = []
         page = 1
         results_wanted = (
@@ -81,13 +84,28 @@ class BaytScraper(Scraper):
         job_list = job_list[: scraper_input.results_wanted]
         return JobResponse(jobs=job_list)
 
-    def _fetch_jobs(self, query: str, page: int) -> list | None:
+    def _fetch_jobs(self, query: str | None, page: int) -> list | None:
         """
         Grabs the job results for the given query and page number.
         """
         try:
-            url = f"{self.base_url}/en/international/jobs/{query}-jobs/?page={page}"
-            response = self.session.get(url)
+            # Handle None search_term by using a general jobs URL
+            if query is None or query.strip() == "":
+                url = f"{self.base_url}/en/international/jobs/?page={page}"
+            else:
+                url = f"{self.base_url}/en/international/jobs/{query}-jobs/?page={page}"
+            
+            log.debug(f"Fetching Bayt URL: {url}")
+            response = self.session.get(url, timeout=10)
+            
+            if response.status_code == 403:
+                log.warning(f"Bayt returned 403 Forbidden for URL: {url}")
+                log.warning("This might be due to anti-bot protection. Consider using proxies or different headers.")
+                return None
+            elif response.status_code != 200:
+                log.warning(f"Bayt returned status code {response.status_code} for URL: {url}")
+                return None
+                
             response.raise_for_status()
             soup = BeautifulSoup(response.text, "html.parser")
             job_listings = soup.find_all("li", attrs={"data-js-job": ""})

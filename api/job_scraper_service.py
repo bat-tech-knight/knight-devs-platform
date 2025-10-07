@@ -67,9 +67,11 @@ class JobScraperService:
         else:
             errors.append("site_name is required")
         
-        # Validate search_term
-        if 'search_term' not in config or not config['search_term']:
-            errors.append("search_term is required")
+        # Validate search_term (optional)
+        if 'search_term' in config and config['search_term']:
+            cleaned_config['search_term'] = str(config['search_term']).strip()
+        else:
+            cleaned_config['search_term'] = None  # Make it optional
         
         # Validate location (optional)
         if 'location' in config and config['location']:
@@ -186,11 +188,31 @@ class JobScraperService:
             
             # Perform the scraping
             start_time = datetime.now()
-            jobs_df = scrape_jobs(**cleaned_config)
+            
+            # Capture any errors that occur during scraping
+            scraping_errors = []
+            jobs_df = None
+            
+            try:
+                jobs_df = scrape_jobs(**cleaned_config)
+            except Exception as scraping_error:
+                scraping_errors.append(f"Scraping error: {str(scraping_error)}")
+                logger.error(f"Error during scraping: {str(scraping_error)}")
+            
             end_time = datetime.now()
             
+            # Check if scraping failed completely
+            if scraping_errors:
+                return {
+                    'success': False,
+                    'error': 'Scraping failed due to errors',
+                    'error_type': 'scraping_error',
+                    'scraping_errors': scraping_errors,
+                    'config_used': cleaned_config
+                }
+            
             # Convert DataFrame to dictionary for JSON serialization
-            if not jobs_df.empty:
+            if jobs_df is not None and not jobs_df.empty:
                 jobs_data = jobs_df.to_dict('records')
                 
                 # Clean up the data for JSON serialization
@@ -216,15 +238,30 @@ class JobScraperService:
                 logger.info(f"Successfully scraped {len(jobs_data)} jobs in {(end_time - start_time).total_seconds():.2f} seconds")
                 return result
             else:
-                return {
-                    'success': True,
-                    'jobs': [],
-                    'total_jobs': 0,
-                    'scraping_time_seconds': (end_time - start_time).total_seconds(),
-                    'config_used': cleaned_config,
-                    'warnings': validation_result['warnings'],
-                    'message': 'No jobs found matching the criteria'
-                }
+                # Check if this is likely due to an error (e.g., 403, site blocking, etc.)
+                # by checking if we have a specific site that might have failed
+                site_name = cleaned_config.get('site_name', 'unknown')
+                
+                # If we're scraping a specific site and got no results, it might be an error
+                if isinstance(site_name, str) and site_name in ['bayt', 'naukri', 'bdjobs']:
+                    return {
+                        'success': False,
+                        'error': f'No jobs found from {site_name}. This might be due to site blocking or anti-bot protection.',
+                        'error_type': 'site_blocking',
+                        'config_used': cleaned_config,
+                        'warnings': validation_result['warnings'],
+                        'suggestion': 'Try using a different site or check if the site is accessible'
+                    }
+                else:
+                    return {
+                        'success': True,
+                        'jobs': [],
+                        'total_jobs': 0,
+                        'scraping_time_seconds': (end_time - start_time).total_seconds(),
+                        'config_used': cleaned_config,
+                        'warnings': validation_result['warnings'],
+                        'message': 'No jobs found matching the criteria'
+                    }
                 
         except Exception as e:
             logger.error(f"Error during job scraping: {str(e)}")
