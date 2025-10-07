@@ -32,7 +32,7 @@ export default async function JobsPage() {
         <Space align="center">
           <Briefcase className="w-8 h-8" style={{ color: '#1890ff' }} />
           <div>
-            <Title level={1} style={{ margin: 0 }}>Job Listings</Title>
+            <Title level={2} style={{ margin: 0 }}>Job Listings</Title>
             <Text type="secondary">
               View and manage scraped job listings from various sources.
             </Text>

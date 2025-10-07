@@ -2,6 +2,7 @@ import { EnvVarWarning } from "@/components/env-var-warning";
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { AdminLayoutWrapper } from "@/components/admin/admin-layout-wrapper";
+import { Breadcrumb } from "@/components/breadcrumb";
 import { hasEnvVars } from "@/lib/utils";
 import Link from "next/link";
 
@@ -34,6 +35,15 @@ export default function AdminLayout({
           <ThemeSwitcher />
           {!hasEnvVars ? <EnvVarWarning /> : <AuthButton />}
         </div>
+      </div>
+
+      {/* Breadcrumb Navigation */}
+      <div style={{ 
+        background: 'var(--ant-color-bg-container)',
+        borderBottom: '1px solid var(--ant-color-border)',
+        padding: '12px 24px'
+      }}>
+        <Breadcrumb />
       </div>
 
       {/* Main Content with Sidebar - Client Component */}

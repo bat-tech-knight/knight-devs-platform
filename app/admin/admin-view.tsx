@@ -29,7 +29,7 @@ export function AdminDashboardView({ initialStats }: AdminDashboardViewProps) {
           <Space align="center">
             <Shield className="w-8 h-8" style={{ color: '#ff4d4f' }} />
             <div>
-              <Typography.Title level={1} style={{ margin: 0 }}>Admin Dashboard</Typography.Title>
+              <Typography.Title level={2} style={{ margin: 0 }}>Admin Dashboard</Typography.Title>
               <Typography.Text type="secondary">
                 Welcome back! Manage your system and configurations.
               </Typography.Text>
