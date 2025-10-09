@@ -1,13 +1,31 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
+import logging
+from dotenv import load_dotenv
 from job_scraper_service import JobScraperService
+from resume_parser import ResumeParser
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Validate required environment variables
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+if not OPENAI_API_KEY or OPENAI_API_KEY == 'your_openai_api_key_here':
+    logger.warning("⚠️  OPENAI_API_KEY not set or using placeholder. AI resume parsing will use fallback mode.")
+else:
+    logger.info("✅ OpenAI API key loaded successfully")
 
 app = Flask(__name__)
 CORS(app)
 
-# Initialize job scraper service
+# Initialize services
 job_scraper = JobScraperService()
+resume_parser = ResumeParser()
 
 # Enable CORS for all routes
 @app.after_request
@@ -286,5 +304,154 @@ def get_example_config():
             'error': f'Internal server error: {str(e)}'
         }), 500
 
+# Resume Parsing Endpoints
+
+@app.route('/api/parse-resume', methods=['POST'])
+def parse_resume():
+    """
+    Parse resume text using AI to extract structured information
+    """
+    try:
+        print("Received resume parsing request")
+        
+        data = request.get_json()
+        
+        if not data or 'resume_text' not in data:
+            print("Error: Resume text is required")
+            return jsonify({
+                'success': False,
+                'error': 'Resume text is required',
+                'error_type': 'missing_resume_text'
+            }), 400
+        
+        resume_text = data['resume_text']
+        
+        if not resume_text.strip():
+            print("Error: Resume text is empty")
+            return jsonify({
+                'success': False,
+                'error': 'Resume text cannot be empty',
+                'error_type': 'empty_resume_text'
+            }), 400
+        
+        print(f"Parsing resume text (length: {len(resume_text)} characters)")
+        
+        # Parse resume with AI
+        parsed_data = resume_parser.parse_resume_with_ai(resume_text)
+        
+        print("Resume parsing completed successfully")
+        
+        return jsonify({
+            'success': True,
+            'parsed_data': parsed_data
+        }), 200
+        
+    except Exception as e:
+        print(f"Error parsing resume: {str(e)}")
+        print(f"Exception type: {type(e).__name__}")
+        
+        # Return more detailed error information
+        error_response = {
+            'success': False,
+            'error': f'Failed to parse resume: {str(e)}',
+            'error_type': 'parsing_error',
+            'exception_type': type(e).__name__
+        }
+        
+        # Add specific error handling for common issues
+        if 'timeout' in str(e).lower():
+            error_response['error_type'] = 'timeout_error'
+            error_response['suggestion'] = 'The AI service took too long to respond. Please try again.'
+        elif 'api' in str(e).lower():
+            error_response['error_type'] = 'api_error'
+            error_response['suggestion'] = 'There was an issue with the AI service. Please check your API configuration.'
+        elif 'json' in str(e).lower():
+            error_response['error_type'] = 'json_parsing_error'
+            error_response['suggestion'] = 'The AI response could not be parsed. Please try again.'
+        
+        return jsonify(error_response), 500
+
+@app.route('/api/parse-resume/test', methods=['POST'])
+def test_resume_parsing():
+    """
+    Test endpoint for debugging resume parsing issues
+    """
+    try:
+        data = request.get_json()
+        test_text = data.get('resume_text', 'John Doe\nSoftware Engineer\njohn@example.com\n123-456-7890')
+        
+        logger.info(f"Testing resume parsing with text: {test_text[:100]}...")
+        
+        # Parse resume with AI
+        parsed_data = resume_parser.parse_resume_with_ai(test_text)
+        
+        return jsonify({
+            'success': True,
+            'parsed_data': parsed_data,
+            'test_text': test_text
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Test parsing failed: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'error_type': type(e).__name__,
+            'test_text': data.get('resume_text', '') if 'data' in locals() else None
+        }), 500
+
+@app.route('/api/parse-resume/health', methods=['GET'])
+def resume_parser_health():
+    """
+    Check if the resume parser is working correctly
+    """
+    try:
+        # Check if OpenAI API key is configured
+        api_key = os.getenv('OPENAI_API_KEY')
+        base_url = os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+        
+        if not api_key or api_key == 'your_openai_api_key_here':
+            return jsonify({
+                'success': False,
+                'error': 'OpenAI API key not configured',
+                'error_type': 'missing_api_key',
+                'suggestion': 'Set OPENAI_API_KEY environment variable',
+                'api_key_status': 'missing' if not api_key else 'placeholder',
+                'api_key_value': api_key[:10] + '...' if api_key else None,
+                'base_url': base_url
+            }), 503
+        
+        # Test with a simple resume text
+        test_resume = "John Doe\nSoftware Engineer\njohn@example.com\n123-456-7890"
+        
+        logger.info("Testing resume parser with sample data")
+        parsed_data = resume_parser.parse_resume_with_ai(test_resume)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Resume parser is working correctly',
+            'test_result': {
+                'first_name': parsed_data.get('first_name', 'N/A'),
+                'last_name': parsed_data.get('last_name', 'N/A'),
+                'headline': parsed_data.get('headline', 'N/A')
+            },
+            'api_key_configured': True,
+            'api_key_length': len(api_key),
+            'api_key_prefix': api_key[:10] + '...',
+            'base_url': base_url
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Resume parser health check failed: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Resume parser health check failed: {str(e)}',
+            'error_type': 'health_check_failed',
+            'exception_type': type(e).__name__,
+            'api_key_status': 'configured' if os.getenv('OPENAI_API_KEY') else 'missing',
+            'api_key_length': len(os.getenv('OPENAI_API_KEY', '')),
+            'base_url': os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+        }), 503
+
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5328)

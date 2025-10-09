@@ -93,7 +93,7 @@ export default function Home() {
               Why Choose Knight Devs?
             </h2>
             <p className="text-xl text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-              We've built the most comprehensive job discovery platform with cutting-edge technology
+              We&apos;ve built the most comprehensive job discovery platform with cutting-edge technology
             </p>
           </div>
 

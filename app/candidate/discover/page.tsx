@@ -3,13 +3,11 @@
 import CandidateHeader from "@/components/candidate/candidate-header";
 import FilterButtons from "@/components/candidate/filter-buttons";
 import JobCard from "@/components/candidate/job-card";
-import { useJobs, useJobStats } from "@/components/candidate/job-hooks";
+import { useJobs } from "@/components/candidate/job-hooks";
 import { Info, Loader2 } from "lucide-react";
 import { useState } from "react";
 
 export default function DiscoverPage() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const [location, setLocation] = useState("");
   const [jobType, setJobType] = useState("");
   const [isRemote, setIsRemote] = useState<boolean | undefined>(undefined);
   const [currentPage, setCurrentPage] = useState(0);
@@ -18,14 +16,11 @@ export default function DiscoverPage() {
   const { jobs, loading, error, total, refetch } = useJobs({
     limit: pageSize,
     offset: currentPage * pageSize,
-    searchTerm: searchTerm || undefined,
-    location: location || undefined,
     jobType: jobType || undefined,
     isRemote: isRemote,
     enableRealtime: true
   });
 
-  const { stats } = useJobStats();
 
   const handleLoadMore = () => {
     setCurrentPage(prev => prev + 1);
@@ -115,7 +110,7 @@ export default function DiscoverPage() {
             {/* No More Jobs */}
             {jobs.length >= total && jobs.length > 0 && (
               <div className="text-center mt-12">
-                <p className="text-slate-400">You've reached the end of available positions</p>
+                <p className="text-slate-400">You&apos;ve reached the end of available positions</p>
               </div>
             )}
           </>
