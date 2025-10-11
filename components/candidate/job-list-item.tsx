@@ -7,9 +7,13 @@ import {
   MapPin, 
   DollarSign,
   Clock,
-  Star
+  Star,
+  Calculator
 } from "lucide-react";
 import { Job } from "./job-hooks";
+import { ATSScoreDisplay } from "./ats-score-display";
+import { useATSScoring, ATSScoreResult } from "./ats-scoring-hooks";
+import { useState, useEffect, useCallback } from "react";
 
 interface JobListItemProps {
   job: Job;
@@ -17,6 +21,7 @@ interface JobListItemProps {
   onSelect: (job: Job) => void;
   onBookmark: (job: Job) => void;
   onDismiss: (job: Job) => void;
+  candidateProfile?: Record<string, unknown>; // Optional candidate profile for ATS scoring
 }
 
 export default function JobListItem({ 
@@ -24,8 +29,69 @@ export default function JobListItem({
   isSelected = false, 
   onSelect, 
   onBookmark, 
-  onDismiss 
+  onDismiss,
+  candidateProfile 
 }: JobListItemProps) {
+  const { calculateATSScore, saveATSScore, getATSScores, loading: atsLoading, error: atsError } = useATSScoring();
+  const [atsScore, setAtsScore] = useState<ATSScoreResult | null>(null);
+  const [loadingExistingScore, setLoadingExistingScore] = useState(false);
+
+  // Load existing ATS score
+  const fetchExistingATSScore = useCallback(async () => {
+    if (!job?.id || !candidateProfile?.id) return;
+    
+    setLoadingExistingScore(true);
+    try {
+      const scores = await getATSScores(candidateProfile.id as string, [job.id]);
+      if (scores[job.id]) {
+        setAtsScore(scores[job.id]);
+      }
+    } catch (error) {
+      console.error("Error loading existing ATS score:", error);
+    } finally {
+      setLoadingExistingScore(false);
+    }
+  }, [job?.id, candidateProfile?.id, getATSScores]);
+
+  // Load existing ATS score when component mounts or candidate profile changes
+  useEffect(() => {
+    fetchExistingATSScore();
+  }, [fetchExistingATSScore]);
+
+  // ATS Scoring function
+  const handleCalculateATSScore = async () => {
+    if (!job || !candidateProfile) {
+      alert("Please complete your profile to calculate ATS score");
+      return;
+    }
+
+    try {
+      const jobDescription = {
+        id: job.id,
+        title: job.title,
+        description: job.description,
+        skills: job.skills || [],
+        job_level: job.job_level,
+        job_type: job.job_type,
+        is_remote: job.is_remote,
+        location: job.location,
+        company_name: job.company_name,
+        company_industry: job.company_industry
+      };
+
+      const score = await calculateATSScore(candidateProfile, jobDescription);
+      setAtsScore(score);
+      
+      // Save the ATS score to database
+      if (candidateProfile?.id) {
+        await saveATSScore(job.id, candidateProfile.id as string, score);
+      }
+    } catch (error) {
+      console.error("Error calculating ATS score:", error);
+      alert("Failed to calculate ATS score. Please try again.");
+    }
+  };
+
   // Helper functions
   const formatSalary = () => {
     if (job.compensation_min && job.compensation_max) {
@@ -77,12 +143,15 @@ export default function JobListItem({
       onClick={() => onSelect(job)}
     >
       {/* Header with labels */}
-      <div className="flex items-center gap-2 mb-2">
-        {isRecentlyPosted() && (
-          <span className="px-2 py-1 bg-green-600 text-white text-xs rounded-full">
-            New
-          </span>
-        )}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {isRecentlyPosted() && (
+            <span className="px-2 py-1 bg-green-600 text-white text-xs rounded-full">
+              New
+            </span>
+          )}
+        </div>
+        
       </div>
 
       {/* Job Title */}
@@ -106,6 +175,28 @@ export default function JobListItem({
         <div className="flex items-center gap-1 text-slate-400 text-sm mb-2">
           <DollarSign className="w-4 h-4" />
           <span>{formatSalary()}</span>
+        </div>
+      )}
+
+      {/* ATS Score Display */}
+      {loadingExistingScore ? (
+        <div className="mb-3 flex items-center justify-center py-2">
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-400"></div>
+          <span className="ml-2 text-slate-400 text-sm">Loading ATS score...</span>
+        </div>
+      ) : atsScore ? (
+        <div className="mb-3">
+          <ATSScoreDisplay 
+            score={atsScore}
+            compact={true}
+          />
+        </div>
+      ) : null}
+
+      {/* ATS Error */}
+      {atsError && (
+        <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-sm">
+          ATS Score Error: {atsError}
         </div>
       )}
 
@@ -153,6 +244,24 @@ export default function JobListItem({
               Easily apply
             </a>
           )}
+          
+          {/* ATS Score Button */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCalculateATSScore();
+            }}
+            disabled={atsLoading || !candidateProfile}
+            className={`flex items-center gap-1 px-3 py-1 text-sm rounded transition-colors ${
+              atsLoading || !candidateProfile
+                ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
+                : 'bg-purple-600 text-white hover:bg-purple-700'
+            }`}
+            title={!candidateProfile ? "Complete your profile to calculate ATS score" : "Calculate ATS compatibility score"}
+          >
+            <Calculator className="w-3 h-3" />
+            {atsLoading ? 'Calculating...' : 'ATS Score'}
+          </button>
         </div>
         
         <div className="flex items-center gap-2">

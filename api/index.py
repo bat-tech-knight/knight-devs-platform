@@ -5,6 +5,7 @@ import logging
 from dotenv import load_dotenv
 from job_scraper_service import JobScraperService
 from resume_parser import ResumeParser
+from ats_scorer import ATSScorer
 
 # Load environment variables from .env file
 load_dotenv()
@@ -26,6 +27,7 @@ CORS(app)
 # Initialize services
 job_scraper = JobScraperService()
 resume_parser = ResumeParser()
+ats_scorer = ATSScorer()
 
 # Enable CORS for all routes
 @app.after_request
@@ -163,6 +165,185 @@ def parse_resume():
         elif 'json' in str(e).lower():
             error_response['error_type'] = 'json_parsing_error'
             error_response['suggestion'] = 'The AI response could not be parsed. Please try again.'
+        
+        return jsonify(error_response), 500
+
+
+# ATS Scoring Endpoints
+
+@app.route('/api/ats-score', methods=['POST'])
+def calculate_ats_score():
+    """
+    Calculate ATS score for a candidate against a specific job
+    """
+    try:
+        print("Received ATS scoring request")
+        
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Request body is required',
+                'error_type': 'missing_request_body'
+            }), 400
+        
+        # Validate required fields
+        required_fields = ['candidate_profile', 'job_description']
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if missing_fields:
+            return jsonify({
+                'success': False,
+                'error': f'Missing required fields: {", ".join(missing_fields)}',
+                'error_type': 'missing_required_fields',
+                'missing_fields': missing_fields
+            }), 400
+        
+        candidate_profile = data['candidate_profile']
+        job_description = data['job_description']
+        resume_text = data.get('resume_text')  # Optional
+        
+        print(f"Calculating ATS score for candidate against job: {job_description.get('title', 'Unknown')}")
+        
+        # Calculate ATS score
+        score_result = ats_scorer.calculate_ats_score(
+            candidate_profile=candidate_profile,
+            job_description=job_description,
+            resume_text=resume_text
+        )
+        
+        print(f"ATS scoring completed successfully. Overall score: {score_result.overall_score}")
+        
+        # Convert result to dictionary for JSON response
+        result_dict = {
+            'overall_score': score_result.overall_score,
+            'skills_match_score': score_result.skills_match_score,
+            'experience_match_score': score_result.experience_match_score,
+            'keyword_match_score': score_result.keyword_match_score,
+            'cultural_fit_score': score_result.cultural_fit_score,
+            'detailed_analysis': score_result.detailed_analysis,
+            'recommendations': score_result.recommendations,
+            'strengths': score_result.strengths,
+            'weaknesses': score_result.weaknesses,
+            'score_explanation': ats_scorer.get_score_explanation(score_result.overall_score)
+        }
+        
+        return jsonify({
+            'success': True,
+            'ats_score': result_dict
+        }), 200
+        
+    except Exception as e:
+        print(f"Error calculating ATS score: {str(e)}")
+        print(f"Exception type: {type(e).__name__}")
+        
+        error_response = {
+            'success': False,
+            'error': f'Failed to calculate ATS score: {str(e)}',
+            'error_type': 'ats_scoring_error',
+            'exception_type': type(e).__name__
+        }
+        
+        # Add specific error handling
+        if 'api' in str(e).lower():
+            error_response['error_type'] = 'api_error'
+            error_response['suggestion'] = 'There was an issue with the AI service. Please check your API configuration.'
+        elif 'timeout' in str(e).lower():
+            error_response['error_type'] = 'timeout_error'
+            error_response['suggestion'] = 'The AI service took too long to respond. Please try again.'
+        
+        return jsonify(error_response), 500
+
+
+@app.route('/api/ats-score/batch', methods=['POST'])
+def calculate_batch_ats_scores():
+    """
+    Calculate ATS scores for a candidate against multiple jobs
+    """
+    try:
+        print("Received batch ATS scoring request")
+        
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Request body is required',
+                'error_type': 'missing_request_body'
+            }), 400
+        
+        # Validate required fields
+        required_fields = ['candidate_profile', 'job_descriptions']
+        missing_fields = [field for field in required_fields if field not in data]
+        
+        if missing_fields:
+            return jsonify({
+                'success': False,
+                'error': f'Missing required fields: {", ".join(missing_fields)}',
+                'error_type': 'missing_required_fields',
+                'missing_fields': missing_fields
+            }), 400
+        
+        candidate_profile = data['candidate_profile']
+        job_descriptions = data['job_descriptions']
+        
+        if not isinstance(job_descriptions, list) or len(job_descriptions) == 0:
+            return jsonify({
+                'success': False,
+                'error': 'job_descriptions must be a non-empty array',
+                'error_type': 'invalid_job_descriptions'
+            }), 400
+        
+        print(f"Calculating ATS scores for candidate against {len(job_descriptions)} jobs")
+        
+        # Calculate batch ATS scores
+        batch_results = ats_scorer.batch_calculate_ats_scores(
+            candidate_profile=candidate_profile,
+            job_descriptions=job_descriptions
+        )
+        
+        # Convert results to dictionaries for JSON response
+        results = []
+        for job_desc, score_result in batch_results:
+            result_dict = {
+                'job_id': job_desc.get('id'),
+                'job_title': job_desc.get('title'),
+                'overall_score': score_result.overall_score,
+                'skills_match_score': score_result.skills_match_score,
+                'experience_match_score': score_result.experience_match_score,
+                'keyword_match_score': score_result.keyword_match_score,
+                'cultural_fit_score': score_result.cultural_fit_score,
+                'detailed_analysis': score_result.detailed_analysis,
+                'recommendations': score_result.recommendations,
+                'strengths': score_result.strengths,
+                'weaknesses': score_result.weaknesses,
+                'score_explanation': ats_scorer.get_score_explanation(score_result.overall_score)
+            }
+            results.append(result_dict)
+        
+        # Sort by overall score (highest first)
+        results.sort(key=lambda x: x['overall_score'], reverse=True)
+        
+        print(f"Batch ATS scoring completed successfully. Processed {len(results)} jobs")
+        
+        return jsonify({
+            'success': True,
+            'ats_scores': results,
+            'total_jobs': len(results),
+            'average_score': sum(r['overall_score'] for r in results) / len(results) if results else 0
+        }), 200
+        
+    except Exception as e:
+        print(f"Error calculating batch ATS scores: {str(e)}")
+        print(f"Exception type: {type(e).__name__}")
+        
+        error_response = {
+            'success': False,
+            'error': f'Failed to calculate batch ATS scores: {str(e)}',
+            'error_type': 'batch_ats_scoring_error',
+            'exception_type': type(e).__name__
+        }
         
         return jsonify(error_response), 500
 

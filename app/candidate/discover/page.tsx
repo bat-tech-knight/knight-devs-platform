@@ -22,7 +22,8 @@ export default function DiscoverPage() {
     dismissJob,
     savedSearches,
     saveSearch,
-    loadSavedSearch
+    loadSavedSearch,
+    candidateProfile
   } = useCandidateDiscover({
     pageSize: 20,
     enableRealtime: true
@@ -74,6 +75,18 @@ export default function DiscoverPage() {
           />
         </div>
 
+        {/* Profile Status */}
+        {!candidateProfile && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-yellow-800 text-sm">
+              <strong>Complete your profile</strong> to enable ATS scoring for better job matching.
+              <a href="/onboarding" className="ml-2 text-blue-600 hover:underline">
+                Complete Profile →
+              </a>
+            </p>
+          </div>
+        )}
+
         {/* Main Content - Two Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Panel - Job List */}
@@ -94,6 +107,7 @@ export default function DiscoverPage() {
               onSelectJob={selectJob}
               onBookmarkJob={bookmarkJob}
               onDismissJob={dismissJob}
+              candidateProfile={candidateProfile || undefined}
             />
           </div>
 
@@ -104,6 +118,7 @@ export default function DiscoverPage() {
                 job={selectedJob}
                 onBookmark={bookmarkJob}
                 onDismiss={dismissJob}
+                candidateProfile={candidateProfile || undefined}
               />
             </div>
           </div>

@@ -15,6 +15,7 @@ interface InfiniteJobListProps {
   onSelectJob: (job: Job) => void;
   onBookmarkJob: (job: Job) => void;
   onDismissJob: (job: Job) => void;
+  candidateProfile?: Record<string, unknown>; // Optional candidate profile for ATS scoring
 }
 
 export default function InfiniteJobList({
@@ -26,7 +27,8 @@ export default function InfiniteJobList({
   selectedJob,
   onSelectJob,
   onBookmarkJob,
-  onDismissJob
+  onDismissJob,
+  candidateProfile
 }: InfiniteJobListProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -117,6 +119,7 @@ export default function InfiniteJobList({
             onSelect={onSelectJob}
             onBookmark={onBookmarkJob}
             onDismiss={onDismissJob}
+            candidateProfile={candidateProfile}
           />
         ))}
       </div>

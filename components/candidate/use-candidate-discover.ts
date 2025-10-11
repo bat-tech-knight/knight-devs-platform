@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useATSScoring, ATSScoreResult } from "./ats-scoring-hooks";
 
 export interface Job {
   id: string;
@@ -98,8 +99,46 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
   // State for saved searches
   const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
   const [savedSearchesLoading, setSavedSearchesLoading] = useState(true);
+  
+  // State for candidate profile and ATS scores
+  const [candidateProfile, setCandidateProfile] = useState<Record<string, unknown> | null>(null);
+  const [atsScores, setAtsScores] = useState<Record<string, ATSScoreResult>>({});
 
   const supabase = createClient();
+  const { getATSScores } = useATSScoring();
+
+  // Load candidate profile
+  const loadCandidateProfile = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (profile) {
+          setCandidateProfile(profile);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading candidate profile:', error);
+    }
+  }, [supabase]);
+
+  // Load ATS scores for jobs
+  const loadATSScores = useCallback(async (jobIds: string[]) => {
+    if (!candidateProfile?.id || jobIds.length === 0) return;
+    
+    try {
+      const scores = await getATSScores(candidateProfile.id as string, jobIds);
+      setAtsScores(prev => ({ ...prev, ...scores }));
+    } catch (error) {
+      console.error('Error loading ATS scores:', error);
+    }
+  }, [candidateProfile?.id, getATSScores]);
 
   // Fetch jobs with current filters and pagination
   const fetchJobs = useCallback(async (page: number = 0, append: boolean = false) => {
@@ -167,6 +206,12 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
       setTotal(count || 0);
       setHasMore(newJobs.length === pageSize);
       setCurrentPage(page);
+      
+      // Load ATS scores for the new jobs
+      if (candidateProfile?.id && newJobs.length > 0) {
+        const jobIds = newJobs.map(job => job.id);
+        loadATSScores(jobIds);
+      }
     } catch (err) {
       console.error('Error fetching jobs:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch jobs');
@@ -174,7 +219,7 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [filters, pageSize, selectedJob, supabase]);
+  }, [filters, pageSize, selectedJob, supabase, candidateProfile?.id, loadATSScores]);
 
   // Load more jobs (infinite scroll)
   const loadMoreJobs = useCallback(() => {
@@ -361,6 +406,11 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
     };
   }, [enableRealtime, fetchJobs, supabase]);
 
+  // Load candidate profile on mount
+  useEffect(() => {
+    loadCandidateProfile();
+  }, [loadCandidateProfile]);
+
   return {
     // Jobs data
     jobs,
@@ -392,6 +442,10 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
     saveSearch,
     loadSavedSearch,
     deleteSavedSearch,
+    
+    // ATS scoring
+    candidateProfile,
+    atsScores,
     
     // Utilities
     refetch: () => fetchJobs(0)

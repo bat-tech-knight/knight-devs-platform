@@ -42,6 +42,21 @@ export interface Job {
   scraped_at: string;
   created_at: string;
   updated_at: string;
+  // ATS scoring fields
+  ats_score?: number;
+  ats_score_breakdown?: {
+    overall_score: number;
+    skills_match_score: number;
+    experience_match_score: number;
+    keyword_match_score: number;
+    cultural_fit_score: number;
+    detailed_analysis?: Record<string, unknown>;
+    recommendations?: string[];
+    strengths?: string[];
+    weaknesses?: string[];
+    score_explanation?: string;
+  };
+  ats_score_calculated_at?: string;
 }
 
 export interface UseJobsOptions {

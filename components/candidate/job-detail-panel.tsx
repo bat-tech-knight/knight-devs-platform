@@ -12,27 +12,96 @@ import {
   Building2,
   Users,
   ChevronDown,
-  CheckCircle
+  CheckCircle,
+  Calculator,
+  Target
 } from "lucide-react";
 import { Job } from "./job-hooks";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { useATSScoring, ATSScoreResult } from "./ats-scoring-hooks";
+import { ATSScoreDisplay } from "./ats-score-display";
 
 interface JobDetailPanelProps {
   job: Job | null;
   onBookmark: (job: Job) => void;
   onDismiss: (job: Job) => void;
+  candidateProfile?: Record<string, unknown>; // Optional candidate profile for ATS scoring
 }
 
-export default function JobDetailPanel({ job, onBookmark, onDismiss }: JobDetailPanelProps) {
+export default function JobDetailPanel({ job, onBookmark, onDismiss, candidateProfile }: JobDetailPanelProps) {
   const [showMoreSkills, setShowMoreSkills] = useState(false);
+  const [atsScore, setAtsScore] = useState<ATSScoreResult | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'ats'>('overview');
+  const [loadingExistingScore, setLoadingExistingScore] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const { calculateATSScore, saveATSScore, getATSScores, loading: atsLoading, error: atsError } = useATSScoring();
 
-  // Reset scroll position when job changes
+  // Load existing ATS score when job changes
+  const fetchExistingATSScore = useCallback(async () => {
+    if (!job?.id || !candidateProfile?.id) return;
+    
+    setLoadingExistingScore(true);
+    try {
+      const scores = await getATSScores(candidateProfile.id as string, [job.id]);
+      if (scores[job.id]) {
+        setAtsScore(scores[job.id]);
+      }
+    } catch (error) {
+      console.error("Error loading existing ATS score:", error);
+    } finally {
+      setLoadingExistingScore(false);
+    }
+  }, [job?.id, candidateProfile?.id, getATSScores]);
+
+  // Reset scroll position and ATS score when job changes
   useEffect(() => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTop = 0;
     }
+    // Reset ATS score when job changes
+    setAtsScore(null);
+    setActiveTab('overview');
   }, [job?.id]);
+
+  // Load existing ATS score when job or candidate profile changes
+  useEffect(() => {
+    fetchExistingATSScore();
+  }, [fetchExistingATSScore]);
+
+  // ATS Scoring function
+  const handleCalculateATSScore = async () => {
+    if (!job || !candidateProfile) {
+      alert("Please complete your profile to calculate ATS score");
+      return;
+    }
+
+    try {
+      const jobDescription = {
+        id: job.id,
+        title: job.title,
+        description: job.description,
+        skills: job.skills || [],
+        job_level: job.job_level,
+        job_type: job.job_type,
+        is_remote: job.is_remote,
+        location: job.location,
+        company_name: job.company_name,
+        company_industry: job.company_industry
+      };
+
+      const score = await calculateATSScore(candidateProfile, jobDescription);
+      setAtsScore(score);
+      setActiveTab('ats'); // Switch to ATS tab after calculation
+      
+      // Save the ATS score to database
+      if (candidateProfile?.id) {
+        await saveATSScore(job.id, candidateProfile.id as string, score);
+      }
+    } catch (error) {
+      console.error("Error calculating ATS score:", error);
+      alert("Failed to calculate ATS score. Please try again.");
+    }
+  };
 
   if (!job) {
     return (
@@ -199,9 +268,38 @@ export default function JobDetailPanel({ job, onBookmark, onDismiss }: JobDetail
         )}
       </div>
 
-      {/* Profile Insights */}
-      <div className="p-6 border-b border-slate-700">
-        <h2 className="text-xl font-semibold text-white mb-2">Profile insights</h2>
+      {/* Tab Navigation */}
+      <div className="px-6 pt-6 border-b border-slate-700">
+        <div className="flex space-x-1 bg-slate-700 rounded-lg p-1">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'overview'
+                ? 'bg-slate-600 text-white'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('ats')}
+            className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'ats'
+                ? 'bg-slate-600 text-white'
+                : 'text-slate-300 hover:text-white'
+            }`}
+          >
+            ATS Score
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'overview' && (
+        <>
+          {/* Profile Insights */}
+          <div className="p-6 border-b border-slate-700">
+            <h2 className="text-xl font-semibold text-white mb-2">Profile insights</h2>
         <p className="text-slate-400 text-sm mb-4">
           Here&apos;s how the job qualifications align with your profile.
         </p>
@@ -252,6 +350,67 @@ export default function JobDetailPanel({ job, onBookmark, onDismiss }: JobDetail
           )}
         </div>
       </div>
+        </>
+      )}
+
+      {/* ATS Tab Content */}
+      {activeTab === 'ats' && (
+        <div className="p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Target className="w-5 h-5 text-purple-400" />
+            <h2 className="text-xl font-semibold text-white">ATS Compatibility Score</h2>
+          </div>
+          
+          {loadingExistingScore ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400 mx-auto mb-2"></div>
+                <p className="text-slate-400">Loading ATS score...</p>
+              </div>
+            </div>
+          ) : atsScore ? (
+            <div className="bg-slate-800 rounded-lg p-4">
+              <ATSScoreDisplay 
+                score={atsScore}
+                showDetails={true}
+                compact={false}
+              />
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calculator className="w-8 h-8 text-slate-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">No ATS Score Available</h3>
+              <p className="text-slate-400 mb-4">
+                Calculate your ATS compatibility score to see how well you match this job.
+              </p>
+              <button
+                onClick={handleCalculateATSScore}
+                disabled={atsLoading || !candidateProfile}
+                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                  atsLoading || !candidateProfile
+                    ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                    : 'bg-purple-600 text-white hover:bg-purple-700'
+                }`}
+                title={!candidateProfile ? "Complete your profile to calculate ATS score" : "Calculate ATS compatibility score"}
+              >
+                <Calculator className="w-4 h-4 inline mr-2" />
+                {atsLoading ? 'Calculating...' : 'Calculate ATS Score'}
+              </button>
+            </div>
+          )}
+          
+          {/* ATS Error */}
+          {atsError && (
+            <div className="mt-4 p-3 bg-red-900/20 border border-red-500/50 rounded-lg">
+              <p className="text-red-400 text-sm">
+                <strong>Error:</strong> {atsError}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Job Details */}
       <div className="p-6">
