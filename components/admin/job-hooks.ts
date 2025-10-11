@@ -166,7 +166,7 @@ export function useJobExecution() {
       console.log("scrapePayload", scrapePayload)
 
       // Call Flask via Next.js proxy/rewrite (see next.config.ts)
-      const response = await fetch(`/api/jobs/scrape`, {
+      const response = await fetch(`/api/flask/jobs/scrape`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
