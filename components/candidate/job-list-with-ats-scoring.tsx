@@ -67,7 +67,7 @@ export default function JobListWithATSScoring() {
         <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-yellow-800 text-sm">
             <strong>Complete your profile</strong> to enable ATS scoring for better job matching.
-            <a href="/onboarding" className="ml-2 text-blue-600 hover:underline">
+            <a href="/settings/expert" className="ml-2 text-blue-600 hover:underline">
               Complete Profile →
             </a>
           </p>

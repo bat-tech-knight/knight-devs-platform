@@ -63,10 +63,18 @@ class ATSScorer:
     ) -> str:
         """Build comprehensive prompt for ATS analysis"""
         
-        # Extract key information
+        # Extract key information from combined profile structure
         candidate_skills = candidate_profile.get('core_skills', []) + candidate_profile.get('other_skills', [])
         candidate_experience = candidate_profile.get('experiences', [])
         candidate_seniority = candidate_profile.get('seniority', 'mid')
+        
+        # Extract contact and social information
+        candidate_name = f"{candidate_profile.get('first_name', '')} {candidate_profile.get('last_name', '')}".strip()
+        candidate_email = candidate_profile.get('email', '')
+        candidate_phone = candidate_profile.get('phone_number', '')
+        candidate_linkedin = candidate_profile.get('linkedin_url', '')
+        candidate_github = candidate_profile.get('github_url', '')
+        candidate_twitter = candidate_profile.get('twitter_url', '')
         
         job_skills = job_description.get('skills', [])
         job_title = job_description.get('title', '')
@@ -78,14 +86,27 @@ class ATSScorer:
 You are an expert ATS (Applicant Tracking System) scoring specialist. Analyze the candidate's profile against the job requirements and provide a comprehensive scoring assessment.
 
 CANDIDATE PROFILE:
-- Name: {candidate_profile.get('first_name', '')} {candidate_profile.get('last_name', '')}
+- Name: {candidate_name}
+- Email: {candidate_email}
+- Phone: {candidate_phone}
+- LinkedIn: {candidate_linkedin}
+- GitHub: {candidate_github}
+- Twitter: {candidate_twitter}
 - Headline: {candidate_profile.get('headline', '')}
 - Seniority Level: {candidate_seniority}
 - Core Skills: {', '.join(candidate_skills[:10])}
 - Additional Skills: {', '.join(candidate_profile.get('other_skills', [])[:10])}
 - Work Experience: {len(candidate_experience)} positions
 - Location: {candidate_profile.get('location', '')}
+- Timezone: {candidate_profile.get('timezone', '')}
 - Work Preference: {candidate_profile.get('work_preference', '')}
+- Work Eligibility: {candidate_profile.get('work_eligibility', '')}
+- Employment Type Preference: {candidate_profile.get('employment_type', '')}
+- Expected Salary: {candidate_profile.get('expected_salary', '')}
+- Industries: {', '.join(candidate_profile.get('industries', [])[:5])}
+- Positions Interested In: {', '.join(candidate_profile.get('positions', [])[:5])}
+- Availability: {candidate_profile.get('availability', '')}
+- Job Search Status: {candidate_profile.get('status', '')}
 - Professional Summary: {candidate_profile.get('professional_summary', '')}
 
 JOB REQUIREMENTS:
@@ -101,7 +122,7 @@ SCORING CRITERIA:
 1. Skills Match (0-100): How well do the candidate's skills align with job requirements?
 2. Experience Match (0-100): Does the candidate's experience level and background fit the role?
 3. Keyword Match (0-100): How many relevant keywords and phrases match between resume and job description?
-4. Cultural Fit (0-100): Based on work preferences, location, and career progression patterns
+4. Cultural Fit (0-100): Based on work preferences, location, availability, and career progression patterns
 5. Overall Score (0-100): Weighted combination of all factors
 
 ANALYSIS REQUIREMENTS:
@@ -110,6 +131,8 @@ ANALYSIS REQUIREMENTS:
 - Consider industry context and role seniority
 - Account for transferable skills and potential
 - Be objective and fair in assessment
+- Consider contact information completeness and professional presence
+- Evaluate social media presence and professional networking
 
 Return ONLY a valid JSON object with this exact structure:
 {{
@@ -122,7 +145,8 @@ Return ONLY a valid JSON object with this exact structure:
         "skills_analysis": "Detailed analysis of skills alignment...",
         "experience_analysis": "Analysis of experience relevance...",
         "keyword_analysis": "Analysis of keyword matching...",
-        "cultural_fit_analysis": "Analysis of cultural compatibility..."
+        "cultural_fit_analysis": "Analysis of cultural compatibility...",
+        "contact_analysis": "Analysis of contact information completeness..."
     }},
     "recommendations": [
         "Specific recommendation 1",

@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from job_scraper_service import JobScraperService
 from resume_parser import ResumeParser
 from ats_scorer import ATSScorer
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # Load environment variables from .env file
 load_dotenv()
@@ -28,6 +30,100 @@ CORS(app)
 job_scraper = JobScraperService()
 resume_parser = ResumeParser()
 ats_scorer = ATSScorer()
+
+def _get_db_connection():
+    """Get database connection using environment variables"""
+    return psycopg2.connect(
+        host=os.getenv('SUPABASE_DB_HOST'),
+        port=os.getenv('SUPABASE_DB_PORT', '5432'),
+        database=os.getenv('SUPABASE_DB_NAME'),
+        user=os.getenv('SUPABASE_DB_USER'),
+        password=os.getenv('SUPABASE_DB_PASSWORD')
+    )
+
+def _fetch_combined_candidate_profile(user_id: str) -> dict:
+    """
+    Fetch combined candidate profile data from both profiles and experts tables
+    
+    Args:
+        user_id: The user ID to fetch profile data for
+    
+    Returns:
+        Combined profile dictionary with all relevant data
+    """
+    try:
+        conn = _get_db_connection()
+        cursor = conn.cursor(cursor_factory=RealDictCursor)
+        
+        # Fetch profile data
+        cursor.execute("""
+            SELECT 
+                id, first_name, last_name, email, phone_number,
+                linkedin_url, github_url, twitter_url, location, timezone,
+                avatar_url, created_at, updated_at
+            FROM profiles 
+            WHERE id = %s
+        """, (user_id,))
+        
+        profile_data = cursor.fetchone()
+        if not profile_data:
+            raise Exception(f"Profile not found for user_id: {user_id}")
+        
+        # Fetch expert data
+        cursor.execute("""
+            SELECT 
+                user_id, resume_url, resume_text, ai_parsed_data,
+                experiences, core_skills, other_skills, industries,
+                positions, seniority, headline, work_eligibility,
+                work_preference, working_timezones, employment_type,
+                expected_salary, skills_preference, funding_stages,
+                company_sizes, availability, status, created_at, updated_at
+            FROM experts 
+            WHERE user_id = %s
+        """, (user_id,))
+        
+        expert_data = cursor.fetchone()
+        
+        # Combine profile and expert data
+        combined_profile = dict(profile_data)
+        
+        if expert_data:
+            # Add expert data to combined profile
+            expert_dict = dict(expert_data)
+            combined_profile.update(expert_dict)
+        else:
+            # If no expert data exists, create empty structure
+            combined_profile.update({
+                'resume_url': None,
+                'resume_text': None,
+                'ai_parsed_data': {},
+                'experiences': [],
+                'core_skills': [],
+                'other_skills': [],
+                'industries': [],
+                'positions': [],
+                'seniority': None,
+                'headline': None,
+                'work_eligibility': None,
+                'work_preference': None,
+                'working_timezones': [],
+                'employment_type': None,
+                'expected_salary': None,
+                'skills_preference': [],
+                'funding_stages': [],
+                'company_sizes': [],
+                'availability': None,
+                'status': None
+            })
+        
+        cursor.close()
+        conn.close()
+        
+        return combined_profile
+        
+    except Exception as e:
+        print(f"Error fetching combined candidate profile: {str(e)}")
+        raise Exception(f"Failed to fetch candidate profile: {str(e)}")
 
 # Enable CORS for all routes
 @app.after_request
@@ -175,6 +271,7 @@ def parse_resume():
 def calculate_ats_score():
     """
     Calculate ATS score for a candidate against a specific job
+    Supports both legacy single profile format and new profile+expert format
     """
     try:
         print("Received ATS scoring request")
@@ -189,7 +286,7 @@ def calculate_ats_score():
             }), 400
         
         # Validate required fields
-        required_fields = ['candidate_profile', 'job_description']
+        required_fields = ['job_description']
         missing_fields = [field for field in required_fields if field not in data]
         
         if missing_fields:
@@ -200,9 +297,26 @@ def calculate_ats_score():
                 'missing_fields': missing_fields
             }), 400
         
-        candidate_profile = data['candidate_profile']
         job_description = data['job_description']
-        resume_text = data.get('resume_text')  # Optional
+        
+        # Check if using new profile+expert format or legacy format
+        if 'candidate_profile' in data:
+            # Legacy format - single profile
+            candidate_profile = data['candidate_profile']
+            resume_text = data.get('resume_text')
+            print(f"Using legacy profile format for ATS scoring")
+        elif 'user_id' in data:
+            # New format - fetch from database
+            user_id = data['user_id']
+            candidate_profile = _fetch_combined_candidate_profile(user_id)
+            resume_text = candidate_profile.get('resume_text')
+            print(f"Using new profile+expert format for ATS scoring (user_id: {user_id})")
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Either candidate_profile or user_id is required',
+                'error_type': 'missing_candidate_data'
+            }), 400
         
         print(f"Calculating ATS score for candidate against job: {job_description.get('title', 'Unknown')}")
         
@@ -260,6 +374,7 @@ def calculate_ats_score():
 def calculate_batch_ats_scores():
     """
     Calculate ATS scores for a candidate against multiple jobs
+    Supports both legacy single profile format and new profile+expert format
     """
     try:
         print("Received batch ATS scoring request")
@@ -274,7 +389,7 @@ def calculate_batch_ats_scores():
             }), 400
         
         # Validate required fields
-        required_fields = ['candidate_profile', 'job_descriptions']
+        required_fields = ['job_descriptions']
         missing_fields = [field for field in required_fields if field not in data]
         
         if missing_fields:
@@ -285,7 +400,6 @@ def calculate_batch_ats_scores():
                 'missing_fields': missing_fields
             }), 400
         
-        candidate_profile = data['candidate_profile']
         job_descriptions = data['job_descriptions']
         
         if not isinstance(job_descriptions, list) or len(job_descriptions) == 0:
@@ -293,6 +407,23 @@ def calculate_batch_ats_scores():
                 'success': False,
                 'error': 'job_descriptions must be a non-empty array',
                 'error_type': 'invalid_job_descriptions'
+            }), 400
+        
+        # Check if using new profile+expert format or legacy format
+        if 'candidate_profile' in data:
+            # Legacy format - single profile
+            candidate_profile = data['candidate_profile']
+            print(f"Using legacy profile format for batch ATS scoring")
+        elif 'user_id' in data:
+            # New format - fetch from database
+            user_id = data['user_id']
+            candidate_profile = _fetch_combined_candidate_profile(user_id)
+            print(f"Using new profile+expert format for batch ATS scoring (user_id: {user_id})")
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Either candidate_profile or user_id is required',
+                'error_type': 'missing_candidate_data'
             }), 400
         
         print(f"Calculating ATS scores for candidate against {len(job_descriptions)} jobs")

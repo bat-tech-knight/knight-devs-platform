@@ -38,6 +38,7 @@
     "mammoth": "^1.11.0",
     "next": "latest",
     "next-themes": "^0.4.6",
+    "openai": "^6.3.0",
     "pdf-parse": "^2.2.2",
     "pdfjs-dist": "^4.0.0",
     "react": "^19.0.0",

@@ -163,17 +163,17 @@ class ResumeParser:
         if parsed_data is None:
             raise Exception(f"Failed to parse AI response as JSON. Content: {content[:200]}...")
         
-        # Transform the data to match frontend onboarding expectations
+        # Transform the data to match frontend expert profile expectations
         transformed_data = self._transform_for_frontend(parsed_data)
         
         return transformed_data
     
     def _transform_for_frontend(self, parsed_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Transform AI response to match frontend onboarding form expectations
+        Transform AI response to match frontend expert profile form expectations
         """
         try:
-            # Map AI response fields to frontend onboarding form fields
+            # Map AI response fields to frontend expert profile form fields
             transformed_data = {
                 # Personal Info Step
                 "first_name": parsed_data.get("first_name", ""),

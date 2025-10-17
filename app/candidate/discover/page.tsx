@@ -1,6 +1,6 @@
 "use client";
 
-import CandidateHeader from "@/components/candidate/candidate-header";
+import EnhancedCandidateHeader from "@/components/candidate/enhanced-candidate-header";
 import SearchBar from "@/components/candidate/search-bar";
 import InfiniteJobList from "@/components/candidate/infinite-job-list";
 import JobDetailPanel from "@/components/candidate/job-detail-panel";
@@ -49,16 +49,16 @@ export default function DiscoverPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900">
-      <CandidateHeader />
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900">
+      <EnhancedCandidateHeader />
       
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Welcome Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
             Job Discovery
           </h1>
-          <p className="text-slate-400">
+          <p className="text-gray-600 dark:text-slate-400">
             Discover your next career opportunity
           </p>
         </div>
@@ -77,10 +77,10 @@ export default function DiscoverPage() {
 
         {/* Profile Status */}
         {!candidateProfile && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-yellow-800 text-sm">
+          <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+            <p className="text-yellow-800 dark:text-yellow-200 text-sm">
               <strong>Complete your profile</strong> to enable ATS scoring for better job matching.
-              <a href="/onboarding" className="ml-2 text-blue-600 hover:underline">
+              <a href="/settings/expert" className="ml-2 text-blue-600 dark:text-blue-400 hover:underline">
                 Complete Profile →
               </a>
             </p>
