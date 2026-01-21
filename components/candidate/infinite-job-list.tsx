@@ -16,6 +16,8 @@ interface InfiniteJobListProps {
   onBookmarkJob: (job: Job) => void;
   onDismissJob: (job: Job) => void;
   candidateProfile?: Record<string, unknown>; // Optional candidate profile for ATS scoring
+  onTrackApplyClick?: (jobId: string) => Promise<void>; // Function to track Apply Now clicks
+  getApplicationStatus?: (jobId: string) => 'clicked' | 'applied' | 'not_applied' | null; // Function to get application status
 }
 
 export default function InfiniteJobList({
@@ -28,7 +30,9 @@ export default function InfiniteJobList({
   onSelectJob,
   onBookmarkJob,
   onDismissJob,
-  candidateProfile
+  candidateProfile,
+  onTrackApplyClick,
+  getApplicationStatus
 }: InfiniteJobListProps) {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const observerRef = useRef<IntersectionObserver | null>(null);
@@ -120,6 +124,8 @@ export default function InfiniteJobList({
             onBookmark={onBookmarkJob}
             onDismiss={onDismissJob}
             candidateProfile={candidateProfile}
+            onTrackApplyClick={onTrackApplyClick}
+            applicationStatus={getApplicationStatus ? getApplicationStatus(job.id) : null}
           />
         ))}
       </div>

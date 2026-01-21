@@ -9,15 +9,18 @@ import {
   Users, 
   Clock,
   Star,
-  ExternalLink
+  ExternalLink,
+  CheckCircle
 } from "lucide-react";
 import { Job } from "./job-hooks";
 
 interface JobCardProps {
   job: Job;
+  onTrackApplyClick?: (jobId: string) => Promise<void>; // Function to track Apply Now clicks
+  applicationStatus?: 'clicked' | 'applied' | 'not_applied' | null; // Current application status
 }
 
-export default function JobCard({ job }: JobCardProps) {
+export default function JobCard({ job, onTrackApplyClick, applicationStatus }: JobCardProps) {
   // Helper functions
   const formatSalary = () => {
     if (job.compensation_min && job.compensation_max) {
@@ -99,17 +102,28 @@ export default function JobCard({ job }: JobCardProps) {
           )}
         </div>
         <div className="flex gap-2">
-          {job.job_url_direct && (
-            <a
-              href={job.job_url_direct}
-              target="_blank"
-              rel="noopener noreferrer"
+          {applicationStatus === 'applied' ? (
+            <button
+              disabled
+              className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg cursor-not-allowed"
+            >
+              <CheckCircle className="w-4 h-4" />
+              <span className="text-sm">Applied</span>
+            </button>
+          ) : job.job_url_direct ? (
+            <button
+              onClick={async () => {
+                if (onTrackApplyClick) {
+                  await onTrackApplyClick(job.id);
+                }
+                window.open(job.job_url_direct, '_blank', 'noopener,noreferrer');
+              }}
               className="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
               <ExternalLink className="w-4 h-4" />
-              <span className="text-sm">Apply</span>
-            </a>
-          )}
+              <span className="text-sm">{applicationStatus === 'clicked' ? 'Apply (clicked)' : 'Apply'}</span>
+            </button>
+          ) : null}
           <button className="flex items-center gap-2 px-3 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition-colors">
             <Send className="w-4 h-4" />
             <span className="text-sm">Message</span>

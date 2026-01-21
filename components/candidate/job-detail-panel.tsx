@@ -32,9 +32,18 @@ interface JobDetailPanelProps {
   onBookmark: (job: Job) => void;
   onDismiss: (job: Job) => void;
   candidateProfile?: Record<string, unknown>; // Optional candidate profile for ATS scoring
+  onTrackApplyClick?: (jobId: string) => Promise<void>; // Function to track Apply Now clicks
+  applicationStatus?: 'clicked' | 'applied' | 'not_applied' | null; // Current application status
 }
 
-export default function JobDetailPanel({ job, onBookmark, onDismiss, candidateProfile }: JobDetailPanelProps) {
+export default function JobDetailPanel({ 
+  job, 
+  onBookmark, 
+  onDismiss, 
+  candidateProfile,
+  onTrackApplyClick,
+  applicationStatus
+}: JobDetailPanelProps) {
   const [showMoreSkills, setShowMoreSkills] = useState(false);
   const [atsScore, setAtsScore] = useState<ATSScoreResult | null>(null);
   const [activeTab, setActiveTab] = useState<'overview' | 'ats' | 'resume'>('overview');
@@ -355,24 +364,42 @@ export default function JobDetailPanel({ job, onBookmark, onDismiss, candidatePr
         {/* Action Buttons */}
         <div className="p-6 border-b border-slate-700">
           <div className="flex items-center gap-4">
-            {job.job_url_direct ? (
-              <a
-                href={job.job_url_direct}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
+            {applicationStatus === 'applied' ? (
+              <button
+                disabled
+                className="flex-1 bg-green-600 text-white px-6 py-3 rounded-lg font-medium text-center cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Apply now
-              </a>
+                <CheckCircle className="w-5 h-5" />
+                Applied
+              </button>
             ) : (
-              <a
-                href={job.job_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
-              >
-                Apply now
-              </a>
+              <>
+                {job.job_url_direct ? (
+                  <button
+                    onClick={async () => {
+                      if (onTrackApplyClick && job.id) {
+                        await onTrackApplyClick(job.id);
+                      }
+                      window.open(job.job_url_direct, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
+                  >
+                    {applicationStatus === 'clicked' ? 'Apply now (clicked)' : 'Apply now'}
+                  </button>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      if (onTrackApplyClick && job.id) {
+                        await onTrackApplyClick(job.id);
+                      }
+                      window.open(job.job_url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="flex-1 bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium text-center"
+                  >
+                    {applicationStatus === 'clicked' ? 'Apply now (clicked)' : 'Apply now'}
+                  </button>
+                )}
+              </>
             )}
           <button
             onClick={() => onBookmark(job)}

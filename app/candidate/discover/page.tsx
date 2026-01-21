@@ -1,10 +1,13 @@
 "use client";
 
+import { useState, useEffect, useCallback } from "react";
 import EnhancedCandidateHeader from "@/components/candidate/enhanced-candidate-header";
 import SearchBar from "@/components/candidate/search-bar";
 import InfiniteJobList from "@/components/candidate/infinite-job-list";
 import JobDetailPanel from "@/components/candidate/job-detail-panel";
+import ApplicationConfirmationModal from "@/components/candidate/application-confirmation-modal";
 import { useCandidateDiscover } from "@/components/candidate/use-candidate-discover";
+import { useJobApplicationTracking } from "@/components/candidate/job-application-hooks";
 
 export default function DiscoverPage() {
   const {
@@ -23,11 +26,90 @@ export default function DiscoverPage() {
     savedSearches,
     saveSearch,
     loadSavedSearch,
-    candidateProfile
+    candidateProfile,
+    pendingApplicationConfirmations,
+    removePendingConfirmation
   } = useCandidateDiscover({
     pageSize: 20,
     enableRealtime: true
   });
+
+  // Application tracking
+  const {
+    trackApplyClick,
+    updateApplicationStatus,
+    loadApplicationStatuses,
+    applicationStatuses
+  } = useJobApplicationTracking();
+
+  // Modal state
+  const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+  const [pendingJobForConfirmation, setPendingJobForConfirmation] = useState<string | null>(null);
+  const [confirmingApplication, setConfirmingApplication] = useState(false);
+
+  // Load application statuses when jobs change
+  useEffect(() => {
+    if (jobs.length > 0) {
+      const jobIds = jobs.map(job => job.id);
+      loadApplicationStatuses(jobIds);
+    }
+  }, [jobs, loadApplicationStatuses]);
+
+  // Show confirmation modal when there are pending confirmations
+  useEffect(() => {
+    if (pendingApplicationConfirmations.length > 0 && !showConfirmationModal) {
+      const firstPendingJobId = pendingApplicationConfirmations[0];
+      const job = jobs.find(j => j.id === firstPendingJobId);
+      if (job) {
+        setPendingJobForConfirmation(firstPendingJobId);
+        setShowConfirmationModal(true);
+      }
+    }
+  }, [pendingApplicationConfirmations, jobs, showConfirmationModal]);
+
+  // Handle confirmation
+  const handleConfirmation = useCallback(async (applied: boolean) => {
+    if (!pendingJobForConfirmation) return;
+
+    try {
+      setConfirmingApplication(true);
+      await updateApplicationStatus(
+        pendingJobForConfirmation,
+        applied ? 'applied' : 'not_applied'
+      );
+      removePendingConfirmation(pendingJobForConfirmation);
+      setShowConfirmationModal(false);
+      setPendingJobForConfirmation(null);
+
+      // If there are more pending confirmations, show the next one
+      if (pendingApplicationConfirmations.length > 1) {
+        const remaining = pendingApplicationConfirmations.filter(id => id !== pendingJobForConfirmation);
+        if (remaining.length > 0) {
+          const nextJob = jobs.find(j => j.id === remaining[0]);
+          if (nextJob) {
+            setTimeout(() => {
+              setPendingJobForConfirmation(remaining[0]);
+              setShowConfirmationModal(true);
+            }, 500);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error updating application status:', error);
+    } finally {
+      setConfirmingApplication(false);
+    }
+  }, [pendingJobForConfirmation, updateApplicationStatus, removePendingConfirmation, pendingApplicationConfirmations, jobs]);
+
+  const handleCancelModal = useCallback(() => {
+    setShowConfirmationModal(false);
+    setPendingJobForConfirmation(null);
+  }, []);
+
+  // Get application status for a job
+  const getJobApplicationStatus = useCallback((jobId: string) => {
+    return applicationStatuses.get(jobId) || null;
+  }, [applicationStatuses]);
 
   const handleSearchChange = (searchTerm: string) => {
     searchJobs({ searchTerm });
@@ -108,6 +190,8 @@ export default function DiscoverPage() {
               onBookmarkJob={bookmarkJob}
               onDismissJob={dismissJob}
               candidateProfile={candidateProfile || undefined}
+              onTrackApplyClick={trackApplyClick}
+              getApplicationStatus={getJobApplicationStatus}
             />
           </div>
 
@@ -119,11 +203,22 @@ export default function DiscoverPage() {
                 onBookmark={bookmarkJob}
                 onDismiss={dismissJob}
                 candidateProfile={candidateProfile || undefined}
+                onTrackApplyClick={trackApplyClick}
+                applicationStatus={selectedJob ? getJobApplicationStatus(selectedJob.id) : null}
               />
             </div>
           </div>
         </div>
       </div>
+
+      {/* Application Confirmation Modal */}
+      <ApplicationConfirmationModal
+        visible={showConfirmationModal}
+        job={pendingJobForConfirmation ? jobs.find(j => j.id === pendingJobForConfirmation) || null : null}
+        onConfirm={handleConfirmation}
+        onCancel={handleCancelModal}
+        loading={confirmingApplication}
+      />
     </div>
   );
 }

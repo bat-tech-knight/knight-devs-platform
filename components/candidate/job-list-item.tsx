@@ -8,7 +8,8 @@ import {
   DollarSign,
   Clock,
   Star,
-  Calculator
+  Calculator,
+  CheckCircle
 } from "lucide-react";
 import { Job } from "./job-hooks";
 import { ATSScoreDisplay } from "./ats-score-display";
@@ -22,6 +23,8 @@ interface JobListItemProps {
   onBookmark: (job: Job) => void;
   onDismiss: (job: Job) => void;
   candidateProfile?: Record<string, unknown>; // Optional candidate profile for ATS scoring
+  onTrackApplyClick?: (jobId: string) => Promise<void>; // Function to track Apply Now clicks
+  applicationStatus?: 'clicked' | 'applied' | 'not_applied' | null; // Current application status
 }
 
 export default function JobListItem({ 
@@ -30,7 +33,9 @@ export default function JobListItem({
   onSelect, 
   onBookmark, 
   onDismiss,
-  candidateProfile 
+  candidateProfile,
+  onTrackApplyClick,
+  applicationStatus
 }: JobListItemProps) {
   const { calculateATSScore, saveATSScore, getATSScores, loading: atsLoading, error: atsError } = useATSScoring();
   const [atsScore, setAtsScore] = useState<ATSScoreResult | null>(null);
@@ -232,18 +237,30 @@ export default function JobListItem({
       {/* Action buttons */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {job.job_url_direct && (
-            <a
-              href={job.job_url_direct}
-              target="_blank"
-              rel="noopener noreferrer"
+          {applicationStatus === 'applied' ? (
+            <button
+              disabled
               onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white text-sm rounded cursor-not-allowed"
+            >
+              <CheckCircle className="w-3 h-3" />
+              Applied
+            </button>
+          ) : job.job_url_direct ? (
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                if (onTrackApplyClick) {
+                  await onTrackApplyClick(job.id);
+                }
+                window.open(job.job_url_direct, '_blank', 'noopener,noreferrer');
+              }}
               className="flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
             >
               <Send className="w-3 h-3" />
-              Easily apply
-            </a>
-          )}
+              {applicationStatus === 'clicked' ? 'Easily apply (clicked)' : 'Easily apply'}
+            </button>
+          ) : null}
           
           {/* ATS Score Button */}
           <button

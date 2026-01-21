@@ -36,6 +36,7 @@ export default function AntdThemeProvider({ children }: AntdThemeProviderProps) 
           colorInfo: "#8b5cf6", // Modern purple
           borderRadius: 12, // More rounded corners
           wireframe: false, // Solid backgrounds
+          fontFamily: "var(--font-inter), system-ui, -apple-system, sans-serif",
         },
         components: {
           Button: {

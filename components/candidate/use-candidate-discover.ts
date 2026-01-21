@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useATSScoring, ATSScoreResult } from "./ats-scoring-hooks";
+import { useJobClose } from "./job-close-hooks";
 
 export interface Job {
   id: string;
@@ -104,8 +105,40 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
   const [candidateProfile, setCandidateProfile] = useState<Record<string, unknown> | null>(null);
   const [atsScores, setAtsScores] = useState<Record<string, ATSScoreResult>>({});
 
+  // State for application tracking
+  const [pendingApplicationConfirmations, setPendingApplicationConfirmations] = useState<string[]>([]);
+
   const supabase = createClient();
   const { getATSScores } = useATSScoring();
+  const { closeJob, loadClosedJobIds, closedJobIds } = useJobClose();
+  
+  // Load applied job IDs for filtering (we'll query directly in fetchJobs)
+  const loadAppliedJobIds = useCallback(async (jobIds: string[]): Promise<string[]> => {
+    try {
+      if (jobIds.length === 0) {
+        return [];
+      }
+
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return [];
+      }
+
+      const { data, error: fetchError } = await supabase
+        .from('user_job_applications')
+        .select('job_id')
+        .eq('user_id', user.id)
+        .in('job_id', jobIds)
+        .eq('status', 'applied');
+
+      if (fetchError) throw fetchError;
+
+      return (data || []).map(item => item.job_id);
+    } catch (err) {
+      console.error('Error loading applied job IDs:', err);
+      return [];
+    }
+  }, [supabase]);
 
   // Load candidate profile
   const loadCandidateProfile = useCallback(async () => {
@@ -152,6 +185,10 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
 
       const offset = page * pageSize;
       
+      // First, fetch a larger batch to account for closed and applied jobs filtering
+      // We'll fetch more than pageSize to ensure we have enough after filtering
+      const fetchSize = pageSize * 2; // Fetch 2x to account for closed and applied jobs
+      
       let query = supabase
         .from('jobs')
         .select('*', { count: 'exact' })
@@ -182,8 +219,8 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
         query = query.lte('compensation_max', filters.salaryMax);
       }
 
-      // Apply pagination
-      query = query.range(offset, offset + pageSize - 1);
+      // Apply pagination (fetch more to account for closed and applied jobs)
+      query = query.range(offset, offset + fetchSize - 1);
 
       const { data, error, count } = await query;
 
@@ -191,20 +228,48 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
         throw error;
       }
 
-      const newJobs = data || [];
+      let fetchedJobs = data || [];
+      
+      // Load closed and applied job IDs for the fetched jobs
+      let appliedIds: string[] = [];
+      if (fetchedJobs.length > 0) {
+        const jobIds = fetchedJobs.map(job => job.id);
+        const [closedIds, appliedJobIds] = await Promise.all([
+          loadClosedJobIds(jobIds),
+          loadAppliedJobIds(jobIds)
+        ]);
+        
+        appliedIds = appliedJobIds;
+        
+        // Combine closed and applied job IDs into a single set for filtering
+        const excludedJobIds = new Set([...closedIds, ...appliedIds]);
+        
+        // Filter out closed and applied jobs
+        if (excludedJobIds.size > 0) {
+          fetchedJobs = fetchedJobs.filter(job => !excludedJobIds.has(job.id));
+        }
+      }
+      
+      // Take only pageSize jobs after filtering
+      const newJobs = fetchedJobs.slice(0, pageSize);
       
       if (append) {
         setJobs(prev => [...prev, ...newJobs]);
       } else {
         setJobs(newJobs);
-        // Reset selected job if it's not in the new results
-        if (selectedJob && !newJobs.find(job => job.id === selectedJob.id)) {
-          setSelectedJob(null);
+        // Reset selected job if it's not in the new results, closed, or applied
+        if (selectedJob) {
+          const isClosed = closedJobIds.has(selectedJob.id);
+          const isApplied = appliedIds.includes(selectedJob.id);
+          if (!newJobs.find(job => job.id === selectedJob.id) || isClosed || isApplied) {
+            setSelectedJob(null);
+          }
         }
       }
 
+      // Update total count (approximate, as we're filtering closed jobs)
       setTotal(count || 0);
-      setHasMore(newJobs.length === pageSize);
+      setHasMore(fetchedJobs.length >= pageSize);
       setCurrentPage(page);
       
       // Load ATS scores for the new jobs
@@ -219,7 +284,7 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [filters, pageSize, selectedJob, supabase, candidateProfile?.id, loadATSScores]);
+  }, [filters, pageSize, selectedJob, supabase, candidateProfile?.id, loadATSScores, loadClosedJobIds, closedJobIds, loadAppliedJobIds]);
 
   // Load more jobs (infinite scroll)
   const loadMoreJobs = useCallback(() => {
@@ -260,19 +325,28 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
     }
   }, []);
 
-  // Dismiss a job
+  // Dismiss/Close a job
   const dismissJob = useCallback(async (job: Job) => {
     try {
-      // Here you would implement dismissing logic
-      // For now, just remove it from the current view
+      // Close the job in the database
+      await closeJob(job.id);
+      
+      // Remove from current view
       setJobs(prev => prev.filter(j => j.id !== job.id));
+      
+      // Clear selected job if it's the one being closed
       if (selectedJob?.id === job.id) {
         setSelectedJob(null);
       }
     } catch (err) {
       console.error('Error dismissing job:', err);
+      // Even if database operation fails, remove from view for better UX
+      setJobs(prev => prev.filter(j => j.id !== job.id));
+      if (selectedJob?.id === job.id) {
+        setSelectedJob(null);
+      }
     }
-  }, [selectedJob]);
+  }, [selectedJob, closeJob]);
 
   // Fetch saved searches
   const fetchSavedSearches = useCallback(async () => {
@@ -411,6 +485,66 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
     loadCandidateProfile();
   }, [loadCandidateProfile]);
 
+  // Page visibility detection for application confirmations
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      // Only process when page becomes visible
+      if (document.visibilityState === 'visible') {
+        try {
+          // Get clicked jobs from sessionStorage
+          const clickedJobsStr = sessionStorage.getItem('clicked_jobs');
+          if (!clickedJobsStr) return;
+
+          const clickedJobs: Array<{ jobId: string; timestamp: number }> = JSON.parse(clickedJobsStr);
+          
+          // Filter jobs clicked within last 30 minutes that haven't been confirmed
+          const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
+          const recentClicks = clickedJobs.filter(
+            item => item.timestamp > thirtyMinutesAgo
+          );
+
+          if (recentClicks.length === 0) return;
+
+          // Check which jobs are still pending confirmation (status is 'clicked')
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          const jobIds = recentClicks.map(item => item.jobId);
+          
+          const { data: applications } = await supabase
+            .from('user_job_applications')
+            .select('job_id, status')
+            .eq('user_id', user.id)
+            .in('job_id', jobIds)
+            .eq('status', 'clicked');
+
+          if (applications && applications.length > 0) {
+            const pendingJobIds = applications.map(app => app.job_id);
+            setPendingApplicationConfirmations(pendingJobIds);
+          }
+        } catch (error) {
+          console.error('Error checking pending applications:', error);
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also check on initial mount if page is visible
+    if (document.visibilityState === 'visible') {
+      handleVisibilityChange();
+    }
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [supabase]);
+
+  // Function to remove job from pending confirmations
+  const removePendingConfirmation = useCallback((jobId: string) => {
+    setPendingApplicationConfirmations(prev => prev.filter(id => id !== jobId));
+  }, []);
+
   return {
     // Jobs data
     jobs,
@@ -446,6 +580,10 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
     // ATS scoring
     candidateProfile,
     atsScores,
+    
+    // Application tracking
+    pendingApplicationConfirmations,
+    removePendingConfirmation,
     
     // Utilities
     refetch: () => fetchJobs(0)
