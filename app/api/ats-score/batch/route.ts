@@ -15,11 +15,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!body.user_id) {
+    if (!body.profile_id) {
       return NextResponse.json(
         { 
           success: false, 
-          error: 'user_id is required',
+          error: 'profile_id is required',
           error_type: 'missing_candidate_data'
         },
         { status: 400 }
@@ -37,14 +37,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Call the Flask API with the new format
+    // Call the Flask API with profile context
     const flaskResponse = await fetch(`${process.env.FLASK_API_URL}/api/ats-score/batch`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        user_id: body.user_id,
+        profile_id: body.profile_id,
         job_descriptions: body.job_descriptions
       })
     });

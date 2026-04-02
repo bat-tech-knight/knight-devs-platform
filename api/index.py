@@ -41,12 +41,12 @@ def _get_db_connection():
         password=os.getenv('SUPABASE_DB_PASSWORD')
     )
 
-def _fetch_combined_candidate_profile(user_id: str) -> dict:
+def _fetch_combined_candidate_profile(profile_id: str) -> dict:
     """
     Fetch combined candidate profile data from both profiles and experts tables
     
     Args:
-        user_id: The user ID to fetch profile data for
+        profile_id: The profile ID to fetch candidate data for
     
     Returns:
         Combined profile dictionary with all relevant data
@@ -63,24 +63,24 @@ def _fetch_combined_candidate_profile(user_id: str) -> dict:
                 avatar_url, created_at, updated_at
             FROM profiles 
             WHERE id = %s
-        """, (user_id,))
+        """, (profile_id,))
         
         profile_data = cursor.fetchone()
         if not profile_data:
-            raise Exception(f"Profile not found for user_id: {user_id}")
+            raise Exception(f"Profile not found for profile_id: {profile_id}")
         
         # Fetch expert data
         cursor.execute("""
             SELECT 
-                user_id, resume_url, resume_text, ai_parsed_data,
+                profile_id, resume_url, resume_text, ai_parsed_data,
                 experiences, core_skills, other_skills, industries,
                 positions, seniority, headline, work_eligibility,
                 work_preference, working_timezones, employment_type,
                 expected_salary, skills_preference, funding_stages,
                 company_sizes, availability, status, created_at, updated_at
             FROM experts 
-            WHERE user_id = %s
-        """, (user_id,))
+            WHERE profile_id = %s
+        """, (profile_id,))
         
         expert_data = cursor.fetchone()
         
@@ -305,16 +305,16 @@ def calculate_ats_score():
             candidate_profile = data['candidate_profile']
             resume_text = data.get('resume_text')
             print(f"Using legacy profile format for ATS scoring")
-        elif 'user_id' in data:
+        elif 'profile_id' in data:
             # New format - fetch from database
-            user_id = data['user_id']
-            candidate_profile = _fetch_combined_candidate_profile(user_id)
+            profile_id = data['profile_id']
+            candidate_profile = _fetch_combined_candidate_profile(profile_id)
             resume_text = candidate_profile.get('resume_text')
-            print(f"Using new profile+expert format for ATS scoring (user_id: {user_id})")
+            print(f"Using profile-based format for ATS scoring (profile_id: {profile_id})")
         else:
             return jsonify({
                 'success': False,
-                'error': 'Either candidate_profile or user_id is required',
+                'error': 'Either candidate_profile or profile_id is required',
                 'error_type': 'missing_candidate_data'
             }), 400
         
@@ -414,15 +414,15 @@ def calculate_batch_ats_scores():
             # Legacy format - single profile
             candidate_profile = data['candidate_profile']
             print(f"Using legacy profile format for batch ATS scoring")
-        elif 'user_id' in data:
+        elif 'profile_id' in data:
             # New format - fetch from database
-            user_id = data['user_id']
-            candidate_profile = _fetch_combined_candidate_profile(user_id)
-            print(f"Using new profile+expert format for batch ATS scoring (user_id: {user_id})")
+            profile_id = data['profile_id']
+            candidate_profile = _fetch_combined_candidate_profile(profile_id)
+            print(f"Using profile-based format for batch ATS scoring (profile_id: {profile_id})")
         else:
             return jsonify({
                 'success': False,
-                'error': 'Either candidate_profile or user_id is required',
+                'error': 'Either candidate_profile or profile_id is required',
                 'error_type': 'missing_candidate_data'
             }), 400
         

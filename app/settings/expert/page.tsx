@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button, Card, Form, Input, Select, Upload, message, Tag, Progress, Alert, Typography } from "antd";
+import { App, Button, Card, Form, Input, Select, Upload, Tag, Progress, Alert, Typography } from "antd";
 import { 
   SaveOutlined, 
   PlusOutlined, 
@@ -12,10 +12,14 @@ import {
   GlobalOutlined,
   BankOutlined,
   UploadOutlined,
-  CheckCircleOutlined
+  CheckCircleOutlined,
+  MailOutlined,
+  PhoneOutlined,
 } from "@ant-design/icons";
+import { syncBuiltinSavedAnswersFromProfile } from "@/lib/builtin-saved-answers";
 import { createClient } from "@/lib/supabase/client";
 import pdfToText from "react-pdftotext";
+import { getProfileDisplayName, getStoredActiveProfileId, setStoredActiveProfileId, UserProfileOption } from "@/lib/profile-selection";
 
 const { TextArea } = Input;
 const { Title, Text } = Typography;
@@ -59,9 +63,12 @@ interface ExpertProfile {
   updated_at: string;
 }
 
-export default function ExpertSettingsPage() {
+function ExpertSettingsPageContent() {
+  const { message } = App.useApp();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
+  const [profiles, setProfiles] = useState<UserProfileOption[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [, setExpert] = useState<ExpertProfile | null>(null);
   const [experiences, setExperiences] = useState<Experience[]>([]);
   
@@ -78,16 +85,51 @@ export default function ExpertSettingsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
+        const { data: userProfiles } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+
+        const profileList = (userProfiles || []) as UserProfileOption[];
+        setProfiles(profileList);
+
+        const storedProfileId = getStoredActiveProfileId();
+        const resolvedProfileId =
+          storedProfileId && profileList.some((profile) => profile.id === storedProfileId)
+            ? storedProfileId
+            : profileList[0]?.id || null;
+
+        setSelectedProfileId(resolvedProfileId);
+        if (resolvedProfileId) {
+          setStoredActiveProfileId(resolvedProfileId);
+        }
+
+        if (!resolvedProfileId) {
+          return;
+        }
+
+        const profileRow = profileList.find((p) => p.id === resolvedProfileId);
+        if (profileRow) {
+          await syncBuiltinSavedAnswersFromProfile(supabase, resolvedProfileId, profileRow);
+        }
+
         const { data: expertData } = await supabase
           .from('experts')
           .select('*')
-          .eq('user_id', user.id)
+          .eq('profile_id', resolvedProfileId)
           .single();
         
+        const contactFields = {
+          email: profileRow?.email ?? '',
+          phoneNumber: profileRow?.phone_number ?? '',
+        };
+
         if (expertData) {
           setExpert(expertData);
           setExperiences(expertData.experiences || []);
           form.setFieldsValue({
+            ...contactFields,
             headline: expertData.headline,
             positions: expertData.positions,
             seniority: expertData.seniority,
@@ -105,6 +147,10 @@ export default function ExpertSettingsPage() {
             availability: expertData.availability,
             status: expertData.status,
           });
+        } else {
+          setExpert(null);
+          setExperiences([]);
+          form.setFieldsValue(contactFields);
         }
       }
     };
@@ -118,30 +164,64 @@ export default function ExpertSettingsPage() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (user) {
+      if (user && selectedProfileId) {
+        const email = String(values.email ?? '').trim();
+        const phoneNumber = String(values.phoneNumber ?? '').trim();
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            email: email || null,
+            phone_number: phoneNumber || null,
+          })
+          .eq('id', selectedProfileId)
+          .eq('user_id', user.id);
+
+        if (profileError) throw profileError;
+
+        const profileRow = profiles.find((p) => p.id === selectedProfileId);
+        if (profileRow) {
+          await syncBuiltinSavedAnswersFromProfile(supabase, selectedProfileId, {
+            ...profileRow,
+            email: email || null,
+            phone_number: phoneNumber || null,
+          });
+        }
+
+        setProfiles((prev) =>
+          prev.map((p) =>
+            p.id === selectedProfileId
+              ? { ...p, email: email || null, phone_number: phoneNumber || null }
+              : p
+          )
+        );
+
         const { error } = await supabase
           .from('experts')
-          .upsert({
-            user_id: user.id,
-            headline: values.headline,
-            positions: values.positions,
-            seniority: values.seniority,
-            core_skills: values.coreSkills,
-            other_skills: values.otherSkills,
-            industries: values.industries,
-            work_eligibility: values.workEligibility,
-            work_preference: values.workPreference,
-            working_timezones: values.workingTimezones,
-            employment_type: values.employmentType,
-            expected_salary: values.expectedSalary,
-            skills_preference: values.skillsPreference,
-            funding_stages: values.fundingStages,
-            company_sizes: values.companySizes,
-            availability: values.availability,
-            status: values.status,
-            experiences: experiences,
-            updated_at: new Date().toISOString(),
-          });
+          .upsert(
+            {
+              profile_id: selectedProfileId,
+              headline: values.headline,
+              positions: values.positions,
+              seniority: values.seniority,
+              core_skills: values.coreSkills,
+              other_skills: values.otherSkills,
+              industries: values.industries,
+              work_eligibility: values.workEligibility,
+              work_preference: values.workPreference,
+              working_timezones: values.workingTimezones,
+              employment_type: values.employmentType,
+              expected_salary: values.expectedSalary,
+              skills_preference: values.skillsPreference,
+              funding_stages: values.fundingStages,
+              company_sizes: values.companySizes,
+              availability: values.availability,
+              status: values.status,
+              experiences: experiences,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: 'profile_id' }
+          );
 
         if (error) throw error;
         
@@ -221,7 +301,11 @@ export default function ExpertSettingsPage() {
 
       // Generate unique filename
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/resume-${Date.now()}.${fileExt}`;
+      if (!selectedProfileId) {
+        throw new Error("Please select a profile before uploading a resume");
+      }
+
+      const fileName = `${user.id}/${selectedProfileId}/resume-${Date.now()}.${fileExt}`;
 
       // Simulate upload progress
       const uploadInterval = setInterval(() => {
@@ -310,30 +394,33 @@ export default function ExpertSettingsPage() {
       // Update experts table with parsed resume data
       const { error: expertError } = await supabase
         .from('experts')
-        .upsert({
-          user_id: user.id,
-          resume_url: urlData.publicUrl,
-          resume_text: resumeText,
-          ai_parsed_data: parsedData.parsed_data,
-          headline: parsedData.parsed_data?.headline || '',
-          positions: [...new Set(parsedData.parsed_data?.positions || [])],
-          seniority: parsedData.parsed_data?.seniority || '',
-          core_skills: [...new Set(parsedData.parsed_data?.core_skills || [])],
-          other_skills: [...new Set(parsedData.parsed_data?.other_skills || [])],
-          industries: [...new Set(parsedData.parsed_data?.industries || [])],
-          work_eligibility: parsedData.parsed_data?.work_eligibility || '',
-          work_preference: parsedData.parsed_data?.work_preference || '',
-          working_timezones: [...new Set(parsedData.parsed_data?.working_timezones || [])],
-          employment_type: parsedData.parsed_data?.employment_type || '',
-          expected_salary: parsedData.parsed_data?.expected_salary || '',
-          skills_preference: [...new Set(parsedData.parsed_data?.skills_preference || [])],
-          funding_stages: [...new Set(parsedData.parsed_data?.funding_stages || [])],
-          company_sizes: [...new Set(parsedData.parsed_data?.company_sizes || [])],
-          availability: parsedData.parsed_data?.availability || '',
-          status: parsedData.parsed_data?.status || '',
-          experiences: parsedData.parsed_data?.experiences || [],
-          updated_at: new Date().toISOString(),
-        });
+        .upsert(
+          {
+            profile_id: selectedProfileId,
+            resume_url: urlData.publicUrl,
+            resume_text: resumeText,
+            ai_parsed_data: parsedData.parsed_data,
+            headline: parsedData.parsed_data?.headline || '',
+            positions: [...new Set(parsedData.parsed_data?.positions || [])],
+            seniority: parsedData.parsed_data?.seniority || '',
+            core_skills: [...new Set(parsedData.parsed_data?.core_skills || [])],
+            other_skills: [...new Set(parsedData.parsed_data?.other_skills || [])],
+            industries: [...new Set(parsedData.parsed_data?.industries || [])],
+            work_eligibility: parsedData.parsed_data?.work_eligibility || '',
+            work_preference: parsedData.parsed_data?.work_preference || '',
+            working_timezones: [...new Set(parsedData.parsed_data?.working_timezones || [])],
+            employment_type: parsedData.parsed_data?.employment_type || '',
+            expected_salary: parsedData.parsed_data?.expected_salary || '',
+            skills_preference: [...new Set(parsedData.parsed_data?.skills_preference || [])],
+            funding_stages: [...new Set(parsedData.parsed_data?.funding_stages || [])],
+            company_sizes: [...new Set(parsedData.parsed_data?.company_sizes || [])],
+            availability: parsedData.parsed_data?.availability || '',
+            status: parsedData.parsed_data?.status || '',
+            experiences: parsedData.parsed_data?.experiences || [],
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'profile_id' }
+        );
 
       if (expertError) {
         console.error('Expert update error:', expertError);
@@ -371,7 +458,7 @@ export default function ExpertSettingsPage() {
       const { data: expertData } = await supabase
         .from('experts')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('profile_id', selectedProfileId)
         .single();
       
       if (expertData) {
@@ -385,6 +472,59 @@ export default function ExpertSettingsPage() {
       setUploading(false);
       setParsing(false);
     }
+  };
+
+  const handleProfileSelection = async (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const profileId = event.target.value;
+    if (!profileId) {
+      return;
+    }
+
+    setSelectedProfileId(profileId);
+    setStoredActiveProfileId(profileId);
+
+    const selectedProfile = profiles.find((p) => p.id === profileId);
+    const contactFields = {
+      email: selectedProfile?.email ?? '',
+      phoneNumber: selectedProfile?.phone_number ?? '',
+    };
+
+    const supabase = createClient();
+    const { data: expertData } = await supabase
+      .from('experts')
+      .select('*')
+      .eq('profile_id', profileId)
+      .single();
+
+    if (!expertData) {
+      setExpert(null);
+      setExperiences([]);
+      form.resetFields();
+      form.setFieldsValue(contactFields);
+      return;
+    }
+
+    setExpert(expertData);
+    setExperiences(expertData.experiences || []);
+    form.setFieldsValue({
+      ...contactFields,
+      headline: expertData.headline,
+      positions: expertData.positions,
+      seniority: expertData.seniority,
+      coreSkills: expertData.core_skills,
+      otherSkills: expertData.other_skills,
+      industries: expertData.industries,
+      workEligibility: expertData.work_eligibility,
+      workPreference: expertData.work_preference,
+      workingTimezones: expertData.working_timezones,
+      employmentType: expertData.employment_type,
+      expectedSalary: expertData.expected_salary,
+      skillsPreference: expertData.skills_preference,
+      fundingStages: expertData.funding_stages,
+      companySizes: expertData.company_sizes,
+      availability: expertData.availability,
+      status: expertData.status,
+    });
   };
 
   const positionOptions = [
@@ -450,6 +590,21 @@ export default function ExpertSettingsPage() {
           Manage your professional skills, experience, and career preferences
         </p>
       </div>
+
+      <Card title="Profile Selection" className="mb-6">
+        <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2">Active Profile</label>
+        <select
+          className="w-full md:w-auto min-w-[280px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-slate-900"
+          value={selectedProfileId || ""}
+          onChange={handleProfileSelection}
+        >
+          {profiles.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {getProfileDisplayName(entry)}
+            </option>
+          ))}
+        </select>
+      </Card>
 
       {/* Resume Upload Section */}
       <Card title="Resume Upload" className="mb-6">
@@ -534,6 +689,35 @@ export default function ExpertSettingsPage() {
         onFinish={handleSave}
         className="space-y-6"
       >
+        <Card title="Contact" className="mb-6">
+          <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
+            Email and phone are stored on your profile and used for applications and autofill.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Form.Item
+              label="Email"
+              name="email"
+              rules={[
+                { required: true, message: 'Please enter your email' },
+                { type: 'email', message: 'Please enter a valid email' },
+              ]}
+            >
+              <Input
+                prefix={<MailOutlined />}
+                placeholder="you@example.com"
+                size="large"
+              />
+            </Form.Item>
+            <Form.Item label="Phone number" name="phoneNumber">
+              <Input
+                prefix={<PhoneOutlined />}
+                placeholder="+1 555 000 0000"
+                size="large"
+              />
+            </Form.Item>
+          </div>
+        </Card>
+
         {/* Professional Summary */}
         <Card title="Professional Summary" className="mb-6">
           <Form.Item
@@ -874,5 +1058,13 @@ export default function ExpertSettingsPage() {
         </div>
       </Form>
     </div>
+  );
+}
+
+export default function ExpertSettingsPage() {
+  return (
+    <App>
+      <ExpertSettingsPageContent />
+    </App>
   );
 }

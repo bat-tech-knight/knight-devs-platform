@@ -18,8 +18,10 @@ export async function requireAdminAuth() {
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', user.id)
-    .single();
+    .eq('user_id', user.id)
+    .eq('role', 'admin')
+    .limit(1)
+    .maybeSingle();
 
   if (error || !profile || profile.role !== 'admin') {
     redirect("/protected");
@@ -53,8 +55,10 @@ export async function getUserProfile(userId: string) {
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('*')
-    .eq('id', userId)
-    .single();
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
 
   if (error) {
     return null;

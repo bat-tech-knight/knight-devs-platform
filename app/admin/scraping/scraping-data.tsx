@@ -13,6 +13,7 @@ export interface ScrapingConfig {
   job_type?: string;
   country_indeed?: string;
   google_search_term?: string;
+  greenhouse_board_token?: string;
   distance?: number;
   easy_apply: boolean;
   linkedin_fetch_description: boolean;

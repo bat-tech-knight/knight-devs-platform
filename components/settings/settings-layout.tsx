@@ -4,13 +4,15 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button, Card, Layout, Menu, Avatar, Typography } from "antd";
-import { 
-  UserOutlined, 
-  SecurityScanOutlined, 
+import {
+  UserOutlined,
+  SecurityScanOutlined,
   ProfileOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  FormOutlined,
 } from "@ant-design/icons";
 import SimpleHeader from "@/components/candidate/simple-header";
+import { getStoredActiveProfileId } from "@/lib/profile-selection";
 
 const { Sider, Content } = Layout;
 const { Text } = Typography;
@@ -31,6 +33,12 @@ const settingsMenuItems = [
     icon: <ProfileOutlined />,
     label: 'Expert Profile',
     description: 'Professional skills and experience'
+  },
+  {
+    key: '/settings/application-answers',
+    icon: <FormOutlined />,
+    label: 'Application answers',
+    description: 'Saved text for job application questions'
   },
   {
     key: '/settings/security',
@@ -68,13 +76,18 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
         setUser(user);
         
         // Get profile data
-        const { data: profileData } = await supabase
+        const { data: profileRows } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        setProfile(profileData);
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+
+        const storedProfileId = getStoredActiveProfileId();
+        const activeProfile = storedProfileId
+          ? (profileRows || []).find((entry) => entry.id === storedProfileId)
+          : null;
+
+        setProfile(activeProfile || profileRows?.[0] || null);
       }
     };
 

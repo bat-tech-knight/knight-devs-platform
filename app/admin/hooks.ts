@@ -69,8 +69,10 @@ export function useAdminAuth() {
           const { data: profile } = await supabase
             .from('profiles')
             .select('role')
-            .eq('id', user.id)
-            .single();
+            .eq('user_id', user.id)
+            .eq('role', 'admin')
+            .limit(1)
+            .maybeSingle();
             
           if (profile?.role === 'admin') {
             setIsAdmin(true);

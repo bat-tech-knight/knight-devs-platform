@@ -127,7 +127,7 @@ export default function JobDetailPanel({
         company_industry: job.company_industry
       };
 
-      const score = await calculateATSScore(candidateProfile, jobDescription);
+      const score = await calculateATSScore(candidateProfile.id as string, jobDescription);
       setAtsScore(score);
       setActiveTab('ats'); // Switch to ATS tab after calculation
       
@@ -166,6 +166,7 @@ export default function JobDetailPanel({
         candidateProfile,
         jobDescription,
         atsScore: 100, // Always use 100% for resume generation
+        profileId: candidateProfile.id as string,
         resumeFormat: 'docx'
       });
 
@@ -173,7 +174,7 @@ export default function JobDetailPanel({
         // Create a GeneratedResume object from the result
         const newResume: GeneratedResume = {
           id: result.resumeId,
-          candidate_id: candidateProfile.id as string,
+          candidate_profile_id: candidateProfile.id as string,
           job_id: job.id,
           ats_score: 100, // Always use 100% for generated resumes
           resume_title: result.resumeTitle || `${candidateProfile.first_name} ${candidateProfile.last_name} - ${job.title}`,
@@ -215,7 +216,7 @@ export default function JobDetailPanel({
     }
   };
 
-  const handleCalculateATSScoreWithResume = async (resumeContent: string) => {
+  const handleCalculateATSScoreWithResume = async (_resumeContent: string) => {
     if (!candidateProfile || !job) return;
 
     try {
@@ -232,17 +233,9 @@ export default function JobDetailPanel({
       };
 
       // Create a mock candidate profile with the generated resume content
-      const resumeProfile = {
-        ...candidateProfile,
-        resume_content: resumeContent
-      };
-
-      const result = await calculateATSScore(resumeProfile, jobDescription);
-      
-      if (result.success && result.score) {
-        setAtsScore(result.score);
-        setActiveTab('ats'); // Switch to ATS tab to show the results
-      }
+      const result = await calculateATSScore(candidateProfile.id as string, jobDescription);
+      setAtsScore(result);
+      setActiveTab('ats'); // Switch to ATS tab to show the results
     } catch (error) {
       console.error('Error calculating ATS score with resume:', error);
     }

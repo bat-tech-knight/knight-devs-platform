@@ -10,6 +10,7 @@ export interface ResumeGenerationRequest {
   candidateProfile: Record<string, unknown>;
   jobDescription: Record<string, unknown>;
   atsScore: number;
+  profileId: string;
   resumeFormat?: string;
 }
 
@@ -24,7 +25,14 @@ export interface ResumeGenerationResult {
 export async function POST(request: NextRequest) {
   try {
     const body: ResumeGenerationRequest = await request.json();
-    const { candidateProfile, jobDescription, atsScore, resumeFormat = 'markdown' } = body;
+    const { candidateProfile, jobDescription, atsScore, profileId, resumeFormat = 'markdown' } = body;
+
+    if (!profileId) {
+      return NextResponse.json({
+        success: false,
+        error: "profileId is required"
+      }, { status: 400 });
+    }
 
     // Validate ATS score requirement
     if (atsScore < 95) {
@@ -39,7 +47,7 @@ export async function POST(request: NextRequest) {
 
     // Generate resume using OpenAI
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
@@ -59,7 +67,7 @@ export async function POST(request: NextRequest) {
 
     // Create generation metadata
     const generationMetadata = {
-      model: "gpt-4",
+      model: "gpt-4o-mini",
       temperature: 0.3,
       max_tokens: 3000,
       atsScore,
@@ -80,10 +88,24 @@ export async function POST(request: NextRequest) {
       }, { status: 401 });
     }
 
+    const { data: ownedProfile, error: profileOwnershipError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', profileId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (profileOwnershipError || !ownedProfile) {
+      return NextResponse.json({
+        success: false,
+        error: "Selected profile does not belong to current user"
+      }, { status: 403 });
+    }
+
     // Upload resume file to storage bucket
-    const fileName = `${user.id}/${jobDescription.id}/${resumeTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${resumeFormat}`;
+    const fileName = `${user.id}/${profileId}/${jobDescription.id}/${resumeTitle.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${resumeFormat}`;
     
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('generated-resumes')
       .upload(fileName, resumeContent, {
         contentType: resumeFormat === 'html' ? 'text/html' : resumeFormat === 'pdf' ? 'application/pdf' : resumeFormat === 'docx' ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' : 'text/markdown',
@@ -107,7 +129,7 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('generated_resumes')
       .insert({
-        candidate_id: user.id,
+        candidate_profile_id: profileId,
         job_id: jobDescription.id,
         ats_score: atsScore,
         resume_title: resumeTitle,

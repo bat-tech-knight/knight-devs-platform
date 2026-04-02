@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 
 export interface GeneratedResume {
   id: string;
-  candidate_id: string;
+  candidate_profile_id: string;
   job_id: string;
   ats_score: number;
   resume_title: string;
@@ -22,6 +22,7 @@ export interface ResumeGenerationRequest {
   candidateProfile: Record<string, unknown>;
   jobDescription: Record<string, unknown>;
   atsScore: number;
+  profileId: string;
   resumeFormat?: string;
 }
 
@@ -73,7 +74,7 @@ export function useResumeGeneration() {
   }, []);
 
   const getGeneratedResumes = useCallback(async (
-    candidateId: string,
+    profileId: string,
     jobIds?: string[]
   ): Promise<Record<string, GeneratedResume>> => {
     try {
@@ -82,7 +83,7 @@ export function useResumeGeneration() {
       let query = supabase
         .from('generated_resumes')
         .select('*')
-        .eq('candidate_id', candidateId)
+        .eq('candidate_profile_id', profileId)
         .order('created_at', { ascending: false });
 
       if (jobIds && jobIds.length > 0) {

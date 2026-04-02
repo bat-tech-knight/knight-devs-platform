@@ -39,7 +39,7 @@ export function useATSScoring(options: UseATSScoringOptions = {}) {
   const [error, setError] = useState<string | null>(null);
 
   const calculateATSScore = useCallback(async (
-    userId: string,
+    profileId: string,
     jobDescription: Record<string, unknown>
   ): Promise<ATSScoreResult> => {
     setLoading(true);
@@ -52,7 +52,7 @@ export function useATSScoring(options: UseATSScoringOptions = {}) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          user_id: userId,
+          profile_id: profileId,
           job_description: jobDescription,
         }),
       });
@@ -79,7 +79,7 @@ export function useATSScoring(options: UseATSScoringOptions = {}) {
   }, [apiBaseUrl]);
 
   const calculateBatchATSScores = useCallback(async (
-    userId: string,
+    profileId: string,
     jobDescriptions: Record<string, unknown>[]
   ): Promise<BatchATSScoreResult[]> => {
     setLoading(true);
@@ -92,7 +92,7 @@ export function useATSScoring(options: UseATSScoringOptions = {}) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          user_id: userId,
+          profile_id: profileId,
           job_descriptions: jobDescriptions,
         }),
       });
@@ -120,7 +120,7 @@ export function useATSScoring(options: UseATSScoringOptions = {}) {
 
   const saveATSScore = useCallback(async (
     jobId: string,
-    userId: string,
+    profileId: string,
     atsScore: ATSScoreResult
   ): Promise<void> => {
     try {
@@ -130,7 +130,7 @@ export function useATSScoring(options: UseATSScoringOptions = {}) {
         .from('job_candidate_ats_scores')
         .insert({
           job_id: jobId,
-          candidate_id: userId, // Now using user_id directly
+          candidate_profile_id: profileId,
           overall_score: atsScore.overall_score,
           skills_match_score: atsScore.skills_match_score,
           experience_match_score: atsScore.experience_match_score,
@@ -156,7 +156,7 @@ export function useATSScoring(options: UseATSScoringOptions = {}) {
   }, []);
 
   const getATSScores = useCallback(async (
-    userId: string,
+    profileId: string,
     jobIds: string[]
   ): Promise<Record<string, ATSScoreResult>> => {
     try {
@@ -165,7 +165,7 @@ export function useATSScoring(options: UseATSScoringOptions = {}) {
       const { data, error } = await supabase
         .from('job_candidate_ats_scores')
         .select('*')
-        .eq('candidate_id', userId) // Now using user_id directly
+        .eq('candidate_profile_id', profileId)
         .in('job_id', jobIds)
         .order('calculated_at', { ascending: false });
 

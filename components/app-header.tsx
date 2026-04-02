@@ -16,12 +16,18 @@ import {
 } from "lucide-react";
 import { KnightLogo } from "@/components/knight-logo";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { getStoredActiveProfileId } from "@/lib/profile-selection";
 
 interface UserProfile {
   id: string;
   first_name?: string;
   last_name?: string;
   avatar_url?: string;
+  email?: string;
+}
+
+interface AuthUser {
+  id: string;
   email?: string;
 }
 
@@ -39,7 +45,7 @@ export default function AppHeader({
   subtitle
 }: AppHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -54,13 +60,18 @@ export default function AppHeader({
         setUser(user);
         
         // Get profile data
-        const { data: profileData } = await supabase
+        const { data: profileRows } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        setProfile(profileData);
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+
+        const storedProfileId = getStoredActiveProfileId();
+        const activeProfile = storedProfileId
+          ? (profileRows || []).find((entry) => entry.id === storedProfileId)
+          : null;
+
+        setProfile(activeProfile || profileRows?.[0] || null);
       }
     };
 

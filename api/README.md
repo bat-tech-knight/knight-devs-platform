@@ -11,11 +11,33 @@ This Flask API handles job scraping and resume parsing for the Knight Devs Platf
 
 ## Setup
 
-### 1. Install Dependencies
+### 0. One-time: Python virtualenv (required for `npm run flask-dev` / `npm run dev`)
+
+From the **repository root** (where `requirements.txt` lives):
+
+**Ubuntu / Debian:** if `python3 -m venv venv` fails with *ensurepip is not available*, install venv support first:
+
+```bash
+sudo apt install python3-venv
+```
+
+Then create the venv and install Python deps:
+
+```bash
+npm run flask-setup
+```
+
+### 1. Install Dependencies (alternative: global pip)
 
 ```bash
 cd api
-pip install -r requirements.txt
+pip install -r ../requirements.txt
+```
+
+Or use the venv after `npm run flask-setup`:
+
+```bash
+./venv/bin/pip install -r requirements.txt
 ```
 
 ### 2. Set Up Environment Variables

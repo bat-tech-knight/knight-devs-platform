@@ -70,13 +70,15 @@ export interface UseCandidateDiscoverOptions {
   initialFilters?: Partial<DiscoverSearchFilters>;
   pageSize?: number;
   enableRealtime?: boolean;
+  selectedProfileId?: string | null;
 }
 
 export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) {
   const {
     initialFilters = {},
     pageSize = 20,
-    enableRealtime = true
+    enableRealtime = true,
+    selectedProfileId = null
   } = options;
 
   // State for jobs
@@ -140,26 +142,26 @@ export function useCandidateDiscover(options: UseCandidateDiscoverOptions = {}) 
     }
   }, [supabase]);
 
-  // Load candidate profile
+  // Load candidate profile by selected profile id
   const loadCandidateProfile = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (profile) {
-          setCandidateProfile(profile);
-        }
+      if (!selectedProfileId) {
+        setCandidateProfile(null);
+        return;
       }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', selectedProfileId)
+        .single();
+      
+      setCandidateProfile(profile || null);
     } catch (error) {
       console.error('Error loading candidate profile:', error);
+      setCandidateProfile(null);
     }
-  }, [supabase]);
+  }, [selectedProfileId, supabase]);
 
   // Load ATS scores for jobs
   const loadATSScores = useCallback(async (jobIds: string[]) => {

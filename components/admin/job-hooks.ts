@@ -149,6 +149,7 @@ export function useJobExecution() {
         site_name: siteName,
         search_term: config.search_term,
         google_search_term: config.google_search_term || undefined,
+        greenhouse_board_token: config.greenhouse_board_token || undefined,
         location: effectiveLocation,
         distance: effectiveDistance,
         is_remote: isRemote,

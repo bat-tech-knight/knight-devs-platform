@@ -126,6 +126,7 @@ interface ScrapingConfig {
   job_type?: string;
   country_indeed?: string;
   google_search_term?: string;
+  greenhouse_board_token?: string;
   distance?: number;
   easy_apply: boolean;
   linkedin_fetch_description: boolean;
@@ -151,6 +152,7 @@ interface SiteConfig {
     job_type: boolean;
     country_indeed: boolean;
     google_search_term: boolean;
+    greenhouse_board_token: boolean;
     distance: boolean;
     easy_apply: boolean;
     linkedin_fetch_description: boolean;
@@ -171,6 +173,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: true,
       country_indeed: true,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: true,
       easy_apply: true,
       linkedin_fetch_description: false,
@@ -189,6 +192,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: true,
       country_indeed: false,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: true,
       easy_apply: false,
       linkedin_fetch_description: false,
@@ -207,6 +211,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: true,
       country_indeed: false,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: false,
       easy_apply: true,
       linkedin_fetch_description: true,
@@ -225,6 +230,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: false,
       country_indeed: false,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: false,
       easy_apply: false,
       linkedin_fetch_description: false,
@@ -243,6 +249,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: false,
       country_indeed: false,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: false,
       easy_apply: false,
       linkedin_fetch_description: false,
@@ -261,6 +268,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: true,
       country_indeed: false,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: true,
       easy_apply: true,
       linkedin_fetch_description: false,
@@ -279,6 +287,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: true,
       country_indeed: false,
       google_search_term: true,
+      greenhouse_board_token: false,
       distance: true,
       easy_apply: false,
       linkedin_fetch_description: false,
@@ -297,6 +306,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: true,
       country_indeed: false,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: false,
       easy_apply: false,
       linkedin_fetch_description: false,
@@ -315,6 +325,7 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: true,
       country_indeed: false,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: false,
       easy_apply: false,
       linkedin_fetch_description: false,
@@ -333,11 +344,31 @@ const SITE_CONFIGS: SiteConfig[] = [
       job_type: true,
       country_indeed: false,
       google_search_term: false,
+      greenhouse_board_token: false,
       distance: false,
       easy_apply: false,
       linkedin_fetch_description: false,
       linkedin_company_ids: false,
       enforce_annual_salary: true,
+      hours_old: true,
+    }
+  },
+  {
+    id: 'greenhouse',
+    name: 'Greenhouse',
+    description: 'Greenhouse hosted job boards',
+    fields: {
+      search_term: true,
+      location: true,
+      job_type: false,
+      country_indeed: false,
+      google_search_term: false,
+      greenhouse_board_token: true,
+      distance: false,
+      easy_apply: false,
+      linkedin_fetch_description: false,
+      linkedin_company_ids: false,
+      enforce_annual_salary: false,
       hours_old: true,
     }
   }
@@ -398,6 +429,10 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
       message.error("Country is required when using Indeed");
       return;
     }
+    if (formData.sites?.includes('greenhouse') && !formData.greenhouse_board_token) {
+      message.error("Greenhouse board token is required when using Greenhouse");
+      return;
+    }
 
     try {
       const supabase = createClient();
@@ -421,6 +456,7 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
         sites: [],
         results_wanted: 10,
         country_indeed: "usa", // Default to USA
+        greenhouse_board_token: "",
         is_remote: false,
         easy_apply: false,
         linkedin_fetch_description: false,
@@ -445,6 +481,10 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
     // Validate country for Indeed
     if (formData.sites?.includes('indeed') && !formData.country_indeed) {
       message.error("Country is required when using Indeed");
+      return;
+    }
+    if (formData.sites?.includes('greenhouse') && !formData.greenhouse_board_token) {
+      message.error("Greenhouse board token is required when using Greenhouse");
       return;
     }
 
@@ -523,6 +563,7 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
       sites: [],
       results_wanted: 10,
       country_indeed: "usa", // Default to USA
+      greenhouse_board_token: "",
       is_remote: false,
       easy_apply: false,
       linkedin_fetch_description: false,
@@ -746,6 +787,22 @@ export function ScrapingConfigManager({ initialConfigs }: ScrapingConfigManagerP
                               />
                               <Text type="secondary" style={{ fontSize: '12px' }}>
                                 Optional - search radius in miles
+                              </Text>
+                            </Space>
+                          </Col>
+                        )}
+
+                        {shouldShowField('greenhouse_board_token') && (
+                          <Col xs={24} md={12}>
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                              <Text strong>Greenhouse Board Token <Text type="danger">*</Text></Text>
+                              <Input
+                                value={formData.greenhouse_board_token || ""}
+                                onChange={(e) => setFormData({ ...formData, greenhouse_board_token: e.target.value })}
+                                placeholder="e.g., stripe"
+                              />
+                              <Text type="secondary" style={{ fontSize: '12px' }}>
+                                Required for Greenhouse. Use the board slug from the URL.
                               </Text>
                             </Space>
                           </Col>

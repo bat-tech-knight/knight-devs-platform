@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button, Card, Form, Input, Upload, Avatar, message, Divider } from "antd";
+import { Button, Card, Form, Input, Upload, Avatar, message } from "antd";
 import { UserOutlined, EditOutlined, SaveOutlined, MailOutlined, PhoneOutlined, LinkOutlined } from "@ant-design/icons";
+import { syncBuiltinSavedAnswersFromProfile } from "@/lib/builtin-saved-answers";
 import { createClient } from "@/lib/supabase/client";
+import { getProfileDisplayName, getStoredActiveProfileId, setStoredActiveProfileId, UserProfileOption } from "@/lib/profile-selection";
 
 export default function ProfileSettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState<any>(null);
+  const [profiles, setProfiles] = useState<UserProfileOption[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -17,14 +20,28 @@ export default function ProfileSettingsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        const { data: profileData } = await supabase
+        const { data: userProfiles } = await supabase
           .from('profiles')
           .select('*')
-          .eq('id', user.id)
-          .single();
-        
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: true });
+
+        const profileList = (userProfiles || []) as UserProfileOption[];
+        setProfiles(profileList);
+
+        const storedProfileId = getStoredActiveProfileId();
+        const resolvedProfileId =
+          storedProfileId && profileList.some((entry) => entry.id === storedProfileId)
+            ? storedProfileId
+            : profileList[0]?.id || null;
+
+        setSelectedProfileId(resolvedProfileId);
+        if (resolvedProfileId) {
+          setStoredActiveProfileId(resolvedProfileId);
+        }
+
+        const profileData = profileList.find((entry) => entry.id === resolvedProfileId);
         if (profileData) {
-          setProfile(profileData);
           setAvatarUrl(profileData.avatar_url);
           form.setFieldsValue({
             firstName: profileData.first_name,
@@ -44,17 +61,18 @@ export default function ProfileSettingsPage() {
     fetchProfile();
   }, [form]);
 
-  const handleSave = async (values: any) => {
+  const handleSave = async (values: Record<string, string>) => {
     setLoading(true);
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (user) {
+      if (user && selectedProfileId) {
         const { error } = await supabase
           .from('profiles')
           .upsert({
-            id: user.id,
+            id: selectedProfileId,
+            user_id: user.id,
             first_name: values.firstName,
             last_name: values.lastName,
             email: values.email,
@@ -69,7 +87,18 @@ export default function ProfileSettingsPage() {
           });
 
         if (error) throw error;
-        
+
+        await syncBuiltinSavedAnswersFromProfile(supabase, selectedProfileId, {
+          first_name: values.firstName,
+          last_name: values.lastName,
+          email: values.email,
+          phone_number: values.phoneNumber,
+          linkedin_url: values.linkedinUrl,
+          github_url: values.githubUrl,
+          twitter_url: values.twitterUrl,
+          location: values.location,
+        });
+
         message.success('Profile updated successfully!');
       }
     } catch (error) {
@@ -80,14 +109,98 @@ export default function ProfileSettingsPage() {
     }
   };
 
+  const handleProfileSelection = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const profileId = event.target.value;
+    if (!profileId) {
+      return;
+    }
+    setSelectedProfileId(profileId);
+    setStoredActiveProfileId(profileId);
+    const selected = profiles.find((entry) => entry.id === profileId);
+    if (!selected) {
+      return;
+    }
+
+    setAvatarUrl(selected.avatar_url || null);
+    form.setFieldsValue({
+      firstName: selected.first_name,
+      lastName: selected.last_name,
+      email: selected.email,
+      phoneNumber: selected.phone_number,
+      linkedinUrl: selected.linkedin_url,
+      githubUrl: selected.github_url,
+      twitterUrl: selected.twitter_url,
+      location: selected.location,
+      timezone: selected.timezone,
+    });
+  };
+
+  const handleCreateProfile = async () => {
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return;
+      }
+
+      const { data: createdProfile, error } = await supabase
+        .from("profiles")
+        .insert({
+          user_id: user.id,
+          first_name: "New",
+          last_name: "Profile",
+          email: user.email || null,
+        })
+        .select("*")
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      await syncBuiltinSavedAnswersFromProfile(supabase, createdProfile.id, {
+        first_name: createdProfile.first_name,
+        last_name: createdProfile.last_name,
+        email: createdProfile.email,
+        phone_number: createdProfile.phone_number,
+        linkedin_url: createdProfile.linkedin_url,
+        github_url: createdProfile.github_url,
+        twitter_url: createdProfile.twitter_url,
+        location: createdProfile.location,
+      });
+
+      const updatedProfiles = [...profiles, createdProfile as UserProfileOption];
+      setProfiles(updatedProfiles);
+      setSelectedProfileId(createdProfile.id);
+      setStoredActiveProfileId(createdProfile.id);
+      setAvatarUrl(createdProfile.avatar_url || null);
+      form.setFieldsValue({
+        firstName: createdProfile.first_name,
+        lastName: createdProfile.last_name,
+        email: createdProfile.email,
+        phoneNumber: createdProfile.phone_number,
+        linkedinUrl: createdProfile.linkedin_url,
+        githubUrl: createdProfile.github_url,
+        twitterUrl: createdProfile.twitter_url,
+        location: createdProfile.location,
+        timezone: createdProfile.timezone,
+      });
+
+      message.success("New profile created");
+    } catch (error) {
+      console.error("Error creating profile:", error);
+      message.error("Failed to create profile");
+    }
+  };
+
   const handleAvatarUpload = async (file: File) => {
     try {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       
-      if (user) {
+      if (user && selectedProfileId) {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${user.id}/avatar-${Date.now()}.${fileExt}`;
+        const fileName = `${user.id}/${selectedProfileId}/avatar-${Date.now()}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
           .from('avatars')
@@ -127,6 +240,24 @@ export default function ProfileSettingsPage() {
         onFinish={handleSave}
         className="space-y-6"
       >
+        <Card title="Profile Selection" className="mb-6">
+          <label className="block text-sm text-gray-700 dark:text-gray-300 mb-2">Active Profile</label>
+          <div className="flex gap-3 items-center">
+            <select
+              className="w-full md:w-auto min-w-[280px] px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-700 dark:bg-slate-900"
+              value={selectedProfileId || ""}
+              onChange={handleProfileSelection}
+            >
+              {profiles.map((entry) => (
+                <option key={entry.id} value={entry.id}>
+                  {getProfileDisplayName(entry)}
+                </option>
+              ))}
+            </select>
+            <Button onClick={handleCreateProfile}>Create Profile</Button>
+          </div>
+        </Card>
+
         {/* Profile Picture */}
         <Card title="Profile Picture" className="mb-6">
           <div className="flex items-center gap-6">

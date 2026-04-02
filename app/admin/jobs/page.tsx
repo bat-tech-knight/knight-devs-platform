@@ -18,8 +18,10 @@ export default async function JobsPage() {
   const { data: profile, error } = await supabase
     .from('profiles')
     .select('role')
-    .eq('id', user.id)
-    .single();
+    .eq('user_id', user.id)
+    .eq('role', 'admin')
+    .limit(1)
+    .maybeSingle();
 
   if (error || !profile || profile.role !== 'admin') {
     redirect("/protected");

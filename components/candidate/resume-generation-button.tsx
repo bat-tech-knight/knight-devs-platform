@@ -49,6 +49,7 @@ export default function ResumeGenerationButton({
         candidateProfile,
         jobDescription,
         atsScore,
+        profileId: candidateProfile.id as string,
         resumeFormat: 'markdown'
       });
 
@@ -56,7 +57,7 @@ export default function ResumeGenerationButton({
         // Create a GeneratedResume object from the result
         const newResume: GeneratedResume = {
           id: result.resumeId,
-          candidate_id: candidateProfile.id as string,
+          candidate_profile_id: candidateProfile.id as string,
           job_id: job.id,
           ats_score: atsScore,
           resume_title: result.resumeTitle || `${candidateProfile.first_name} ${candidateProfile.last_name} - ${job.title}`,
