@@ -84,7 +84,10 @@ export default function JobListItem({
         company_industry: job.company_industry
       };
 
-      const score = await calculateATSScore(candidateProfile, jobDescription);
+      const score = await calculateATSScore(
+        candidateProfile.id as string,
+        jobDescription
+      );
       setAtsScore(score);
       
       // Save the ATS score to database

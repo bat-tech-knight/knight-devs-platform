@@ -216,7 +216,7 @@ export default function JobDetailPanel({
     }
   };
 
-  const handleCalculateATSScoreWithResume = async (_resumeContent: string) => {
+  const handleCalculateATSScoreWithResume = async () => {
     if (!candidateProfile || !job) return;
 
     try {
@@ -751,7 +751,7 @@ export default function JobDetailPanel({
                   Delete Resume
                 </button>
                 <button
-                  onClick={() => handleCalculateATSScoreWithResume(generatedResume.resume_content)}
+                  onClick={() => handleCalculateATSScoreWithResume()}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
                 >
                   <Calculator className="w-4 h-4" />

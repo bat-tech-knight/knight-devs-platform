@@ -8,8 +8,9 @@ export default function ATSScoringDemo() {
   const { calculateATSScore, loading, error } = useATSScoring();
   const [score, setScore] = useState<ATSScoreResult | null>(null);
 
-  // Example candidate profile
+  // Example candidate profile (id is required by the ATS API; demo uses a placeholder)
   const candidateProfile = {
+    id: "demo-profile-id",
     first_name: "John",
     last_name: "Doe",
     headline: "Senior Full Stack Developer",
@@ -42,7 +43,10 @@ export default function ATSScoringDemo() {
 
   const handleCalculateScore = async () => {
     try {
-      const result = await calculateATSScore(candidateProfile, jobDescription);
+      const result = await calculateATSScore(
+        candidateProfile.id,
+        jobDescription as Record<string, unknown>
+      );
       setScore(result);
     } catch (err) {
       console.error("Error calculating ATS score:", err);

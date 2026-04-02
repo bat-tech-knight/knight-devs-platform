@@ -63,6 +63,13 @@ export async function POST(request: NextRequest) {
     });
 
     const resumeContent = response.choices[0].message.content;
+    if (resumeContent == null || resumeContent === "") {
+      return NextResponse.json(
+        { success: false, error: "Resume generation returned empty content" },
+        { status: 500 }
+      );
+    }
+
     const resumeTitle = generateResumeTitle(candidateProfile, jobDescription);
 
     // Create generation metadata

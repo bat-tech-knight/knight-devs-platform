@@ -60,7 +60,9 @@ export default function JobListWithATSScoring() {
 
   useEffect(() => {
     const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId) || null;
-    setCandidateProfile(selectedProfile);
+    setCandidateProfile(
+      selectedProfile ? (selectedProfile as unknown as Record<string, unknown>) : null
+    );
   }, [profiles, selectedProfileId]);
 
   const handleSelectProfile = (event: React.ChangeEvent<HTMLSelectElement>) => {

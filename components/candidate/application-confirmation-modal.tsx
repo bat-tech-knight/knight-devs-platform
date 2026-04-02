@@ -88,7 +88,7 @@ export default function ApplicationConfirmationModal({
             loading={loading}
             className="flex-1"
           >
-            No, I didn't apply
+            No, I didn&apos;t apply
           </Button>
         </div>
       </div>

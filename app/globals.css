@@ -4,6 +4,9 @@
 
 @layer base {
   :root {
+    /* System stack avoids next/font/google build-time fetch (fails offline / blocked networks). */
+    --font-inter: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, "Noto Sans", sans-serif;
     /* Modern Digital Light Theme */
     --background: 240 10% 98%;
     --foreground: 240 10% 3.9%;

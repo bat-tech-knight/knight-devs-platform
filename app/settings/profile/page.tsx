@@ -42,7 +42,7 @@ export default function ProfileSettingsPage() {
 
         const profileData = profileList.find((entry) => entry.id === resolvedProfileId);
         if (profileData) {
-          setAvatarUrl(profileData.avatar_url);
+          setAvatarUrl(profileData.avatar_url ?? null);
           form.setFieldsValue({
             firstName: profileData.first_name,
             lastName: profileData.last_name,

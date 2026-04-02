@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Button, Card, Form, Input, message, Alert, Divider, Space, Typography } from "antd";
+import { Button, Card, Form, Input, message, Alert, Space, Typography } from "antd";
 import { 
   SaveOutlined, 
   LockOutlined, 
@@ -14,12 +14,31 @@ import { createClient } from "@/lib/supabase/client";
 
 const { Text, Title } = Typography;
 
+interface PasswordChangeValues {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+interface EmailChangeValues {
+  newEmail: string;
+}
+
+function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const msg = (error as { message?: unknown }).message;
+    if (typeof msg === "string") return msg;
+  }
+  return fallback;
+}
+
 export default function SecuritySettingsPage() {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [passwordLoading, setPasswordLoading] = useState(false);
 
-  const handlePasswordChange = async (values: any) => {
+  const handlePasswordChange = async (values: PasswordChangeValues) => {
     if (values.newPassword !== values.confirmPassword) {
       message.error('New passwords do not match');
       return;
@@ -37,15 +56,15 @@ export default function SecuritySettingsPage() {
       
       message.success('Password updated successfully!');
       form.resetFields(['currentPassword', 'newPassword', 'confirmPassword']);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating password:', error);
-      message.error(error.message || 'Failed to update password');
+      message.error(getErrorMessage(error, 'Failed to update password'));
     } finally {
       setPasswordLoading(false);
     }
   };
 
-  const handleEmailChange = async (values: any) => {
+  const handleEmailChange = async (values: EmailChangeValues) => {
     setLoading(true);
     try {
       const supabase = createClient();
@@ -58,9 +77,9 @@ export default function SecuritySettingsPage() {
       
       message.success('Email update request sent! Please check your new email for confirmation.');
       form.resetFields(['newEmail']);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error updating email:', error);
-      message.error(error.message || 'Failed to update email');
+      message.error(getErrorMessage(error, 'Failed to update email'));
     } finally {
       setLoading(false);
     }
