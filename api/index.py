@@ -134,6 +134,13 @@ def after_request(response):
     return response
 
 
+@app.route('/health', methods=['GET'])
+@app.route('/api/health', methods=['GET'])
+def health():
+    """Liveness probe for load balancers and orchestrators (Render, k8s, etc.)."""
+    return jsonify({'status': 'ok', 'service': 'knight-devs-api'}), 200
+
+
 # Job Scraping Endpoints
 
 @app.route('/api/jobs/scrape', methods=['POST'])
