@@ -55,7 +55,13 @@ async function proxyToFlask(
     );
   }
 
+  // Node fetch decompresses gzip/br bodies but may keep Content-Encoding / Content-Length
+  // from upstream; forwarding those with a decompressed body breaks the browser (ERR_CONTENT_DECODING_FAILED).
   const outHeaders = new Headers(upstream.headers);
+  outHeaders.delete('content-encoding');
+  outHeaders.delete('content-length');
+  outHeaders.delete('transfer-encoding');
+
   return new NextResponse(await upstream.arrayBuffer(), {
     status: upstream.status,
     statusText: upstream.statusText,
