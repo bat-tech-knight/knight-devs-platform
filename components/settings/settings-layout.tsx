@@ -10,6 +10,7 @@ import {
   ProfileOutlined,
   LogoutOutlined,
   FormOutlined,
+  LinkOutlined,
 } from "@ant-design/icons";
 import SimpleHeader from "@/components/candidate/simple-header";
 import { getStoredActiveProfileId } from "@/lib/profile-selection";
@@ -39,6 +40,12 @@ const settingsMenuItems = [
     icon: <FormOutlined />,
     label: 'Application answers',
     description: 'Saved text for job application questions'
+  },
+  {
+    key: '/settings/external-bids',
+    icon: <LinkOutlined />,
+    label: 'External bids',
+    description: 'URLs recorded from the extension after you submit off-platform'
   },
   {
     key: '/settings/security',
