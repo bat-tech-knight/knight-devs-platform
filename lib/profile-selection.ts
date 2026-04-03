@@ -10,6 +10,11 @@ export interface UserProfileOption {
   github_url?: string | null;
   twitter_url?: string | null;
   location?: string | null;
+  address_line1?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_country?: string | null;
+  address_postal_code?: string | null;
   timezone?: string | null;
   avatar_url?: string | null;
   created_at?: string | null;

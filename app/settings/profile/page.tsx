@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Button, Card, Form, Input, Upload, Avatar, message } from "antd";
 import { UserOutlined, EditOutlined, SaveOutlined, MailOutlined, PhoneOutlined, LinkOutlined } from "@ant-design/icons";
 import { syncBuiltinSavedAnswersFromProfile } from "@/lib/builtin-saved-answers";
+import { formatProfileLocation } from "@/lib/format-profile-location";
 import { createClient } from "@/lib/supabase/client";
 import { getProfileDisplayName, getStoredActiveProfileId, setStoredActiveProfileId, UserProfileOption } from "@/lib/profile-selection";
 
@@ -51,7 +52,11 @@ export default function ProfileSettingsPage() {
             linkedinUrl: profileData.linkedin_url,
             githubUrl: profileData.github_url,
             twitterUrl: profileData.twitter_url,
-            location: profileData.location,
+            addressLine1: profileData.address_line1,
+            addressCity: profileData.address_city,
+            addressState: profileData.address_state,
+            addressCountry: profileData.address_country,
+            addressPostalCode: profileData.address_postal_code,
             timezone: profileData.timezone,
           });
         }
@@ -68,6 +73,15 @@ export default function ProfileSettingsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user && selectedProfileId) {
+        const addressParts = {
+          address_line1: values.addressLine1?.trim() || null,
+          address_city: values.addressCity?.trim() || null,
+          address_state: values.addressState?.trim() || null,
+          address_country: values.addressCountry?.trim() || null,
+          address_postal_code: values.addressPostalCode?.trim() || null,
+        };
+        const locationSummary = formatProfileLocation(addressParts) || null;
+
         const { error } = await supabase
           .from('profiles')
           .upsert({
@@ -80,7 +94,8 @@ export default function ProfileSettingsPage() {
             linkedin_url: values.linkedinUrl,
             github_url: values.githubUrl,
             twitter_url: values.twitterUrl,
-            location: values.location,
+            location: locationSummary,
+            ...addressParts,
             timezone: values.timezone,
             avatar_url: avatarUrl,
             updated_at: new Date().toISOString(),
@@ -96,7 +111,8 @@ export default function ProfileSettingsPage() {
           linkedin_url: values.linkedinUrl,
           github_url: values.githubUrl,
           twitter_url: values.twitterUrl,
-          location: values.location,
+          location: locationSummary,
+          ...addressParts,
         });
 
         message.success('Profile updated successfully!');
@@ -130,7 +146,11 @@ export default function ProfileSettingsPage() {
       linkedinUrl: selected.linkedin_url,
       githubUrl: selected.github_url,
       twitterUrl: selected.twitter_url,
-      location: selected.location,
+      addressLine1: selected.address_line1,
+      addressCity: selected.address_city,
+      addressState: selected.address_state,
+      addressCountry: selected.address_country,
+      addressPostalCode: selected.address_postal_code,
       timezone: selected.timezone,
     });
   };
@@ -167,6 +187,11 @@ export default function ProfileSettingsPage() {
         github_url: createdProfile.github_url,
         twitter_url: createdProfile.twitter_url,
         location: createdProfile.location,
+        address_line1: createdProfile.address_line1 ?? null,
+        address_city: createdProfile.address_city ?? null,
+        address_state: createdProfile.address_state ?? null,
+        address_country: createdProfile.address_country ?? null,
+        address_postal_code: createdProfile.address_postal_code ?? null,
       });
 
       const updatedProfiles = [...profiles, createdProfile as UserProfileOption];
@@ -182,7 +207,11 @@ export default function ProfileSettingsPage() {
         linkedinUrl: createdProfile.linkedin_url,
         githubUrl: createdProfile.github_url,
         twitterUrl: createdProfile.twitter_url,
-        location: createdProfile.location,
+        addressLine1: createdProfile.address_line1,
+        addressCity: createdProfile.address_city,
+        addressState: createdProfile.address_state,
+        addressCountry: createdProfile.address_country,
+        addressPostalCode: createdProfile.address_postal_code,
         timezone: createdProfile.timezone,
       });
 
@@ -343,17 +372,26 @@ export default function ProfileSettingsPage() {
             </Form.Item>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <Form.Item
-              label="Location"
-              name="location"
-            >
-              <Input
-                placeholder="San Francisco, CA, USA"
-                size="large"
-              />
+          <div className="grid grid-cols-1 gap-4 mt-4">
+            <Form.Item label="Address line 1" name="addressLine1">
+              <Input placeholder="123 Main Street, Apt 4" size="large" />
             </Form.Item>
-            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Form.Item label="City" name="addressCity">
+                <Input placeholder="San Francisco" size="large" />
+              </Form.Item>
+              <Form.Item label="State / province" name="addressState">
+                <Input placeholder="CA" size="large" />
+              </Form.Item>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Form.Item label="Country" name="addressCountry">
+                <Input placeholder="United States" size="large" />
+              </Form.Item>
+              <Form.Item label="ZIP / postal code" name="addressPostalCode">
+                <Input placeholder="94102" size="large" />
+              </Form.Item>
+            </div>
             <Form.Item
               label="Timezone"
               name="timezone"

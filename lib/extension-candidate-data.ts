@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 /** Columns that exist on `public.profiles` (multi-profile schema). */
 const PROFILE_COLUMNS =
-  "id, user_id, first_name, last_name, email, phone_number, linkedin_url, github_url, twitter_url, location, timezone, avatar_url, role";
+  "id, user_id, first_name, last_name, email, phone_number, linkedin_url, github_url, twitter_url, location, address_line1, address_city, address_state, address_country, address_postal_code, timezone, avatar_url, role";
 
 function experiencesToStringLines(experiences: unknown): string[] {
   if (!Array.isArray(experiences)) return [];
@@ -103,6 +103,11 @@ export async function loadExtensionCandidatePayload(
     email: profile.email,
     phone_number: profile.phone_number,
     location: profile.location,
+    address_line1: profile.address_line1 ?? null,
+    address_city: profile.address_city ?? null,
+    address_state: profile.address_state ?? null,
+    address_country: profile.address_country ?? null,
+    address_postal_code: profile.address_postal_code ?? null,
     linkedin_url: profile.linkedin_url,
     github_url: profile.github_url,
     website_url: null,

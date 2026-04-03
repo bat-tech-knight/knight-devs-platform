@@ -10,6 +10,11 @@ export type ProfileRowForBuiltinSync = {
   github_url?: string | null;
   twitter_url?: string | null;
   location?: string | null;
+  address_line1?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_country?: string | null;
+  address_postal_code?: string | null;
 };
 
 const BUILTIN_FIELDS: { builtinKey: string; label: string; column: keyof ProfileRowForBuiltinSync }[] = [
@@ -20,6 +25,11 @@ const BUILTIN_FIELDS: { builtinKey: string; label: string; column: keyof Profile
   { builtinKey: "linkedin", label: "LinkedIn", column: "linkedin_url" },
   { builtinKey: "github", label: "GitHub", column: "github_url" },
   { builtinKey: "twitter", label: "Twitter / X", column: "twitter_url" },
+  { builtinKey: "address_line1", label: "Address line 1", column: "address_line1" },
+  { builtinKey: "address_city", label: "City", column: "address_city" },
+  { builtinKey: "address_state", label: "State / province", column: "address_state" },
+  { builtinKey: "address_country", label: "Country", column: "address_country" },
+  { builtinKey: "address_postal_code", label: "ZIP / postal code", column: "address_postal_code" },
   { builtinKey: "location", label: "Location", column: "location" },
 ];
 
