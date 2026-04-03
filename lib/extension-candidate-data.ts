@@ -79,7 +79,7 @@ export async function loadExtensionCandidatePayload(
   const { data: expert, error: expertError } = await supabase
     .from("experts")
     .select(
-      "resume_text, resume_url, core_skills, other_skills, experiences, headline, work_eligibility, ai_parsed_data"
+      "resume_text, resume_url, core_skills, other_skills, experiences, headline, work_eligibility, us_work_authorized, requires_visa_sponsorship, ai_parsed_data"
     )
     .eq("profile_id", profileId)
     .maybeSingle();
@@ -115,7 +115,8 @@ export async function loadExtensionCandidatePayload(
     resume_text: expert?.resume_text ?? null,
     resume_url: expert?.resume_url ?? null,
     work_authorization: expert?.work_eligibility ?? null,
-    requires_sponsorship: null,
+    requires_sponsorship: expert?.requires_visa_sponsorship ?? null,
+    us_work_authorized: expert?.us_work_authorized ?? null,
     core_skills: expert?.core_skills ?? null,
     other_skills: expert?.other_skills ?? null,
     experience: experienceLines.length ? experienceLines : null,

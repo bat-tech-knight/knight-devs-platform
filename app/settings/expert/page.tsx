@@ -16,7 +16,7 @@ import {
   MailOutlined,
   PhoneOutlined,
 } from "@ant-design/icons";
-import { syncBuiltinSavedAnswersFromProfile } from "@/lib/builtin-saved-answers";
+import { syncBuiltinSavedAnswersFromProfile, syncVisaBuiltinSavedAnswers } from "@/lib/builtin-saved-answers";
 import { createClient } from "@/lib/supabase/client";
 import pdfToText from "react-pdftotext";
 import { getProfileDisplayName, getStoredActiveProfileId, setStoredActiveProfileId, UserProfileOption } from "@/lib/profile-selection";
@@ -49,6 +49,8 @@ interface ExpertProfile {
   other_skills?: string[];
   industries?: string[];
   work_eligibility?: string;
+  us_work_authorized?: boolean | null;
+  requires_visa_sponsorship?: boolean | null;
   work_preference?: string;
   working_timezones?: string[];
   employment_type?: string;
@@ -137,6 +139,15 @@ function ExpertSettingsPageContent() {
             otherSkills: expertData.other_skills,
             industries: expertData.industries,
             workEligibility: expertData.work_eligibility,
+            usWorkAuthorized:
+              expertData.us_work_authorized === true || expertData.us_work_authorized === false
+                ? expertData.us_work_authorized
+                : undefined,
+            requiresVisaSponsorship:
+              expertData.requires_visa_sponsorship === true ||
+              expertData.requires_visa_sponsorship === false
+                ? expertData.requires_visa_sponsorship
+                : undefined,
             workPreference: expertData.work_preference,
             workingTimezones: expertData.working_timezones,
             employmentType: expertData.employment_type,
@@ -208,6 +219,12 @@ function ExpertSettingsPageContent() {
               other_skills: values.otherSkills,
               industries: values.industries,
               work_eligibility: values.workEligibility,
+              us_work_authorized:
+                typeof values.usWorkAuthorized === "boolean" ? values.usWorkAuthorized : null,
+              requires_visa_sponsorship:
+                typeof values.requiresVisaSponsorship === "boolean"
+                  ? values.requiresVisaSponsorship
+                  : null,
               work_preference: values.workPreference,
               working_timezones: values.workingTimezones,
               employment_type: values.employmentType,
@@ -224,7 +241,14 @@ function ExpertSettingsPageContent() {
           );
 
         if (error) throw error;
-        
+
+        await syncVisaBuiltinSavedAnswers(
+          supabase,
+          selectedProfileId,
+          typeof values.usWorkAuthorized === "boolean" ? values.usWorkAuthorized : null,
+          typeof values.requiresVisaSponsorship === "boolean" ? values.requiresVisaSponsorship : null
+        );
+
         message.success('Expert profile updated successfully!');
       }
     } catch (error) {
@@ -515,6 +539,15 @@ function ExpertSettingsPageContent() {
       otherSkills: expertData.other_skills,
       industries: expertData.industries,
       workEligibility: expertData.work_eligibility,
+      usWorkAuthorized:
+        expertData.us_work_authorized === true || expertData.us_work_authorized === false
+          ? expertData.us_work_authorized
+          : undefined,
+      requiresVisaSponsorship:
+        expertData.requires_visa_sponsorship === true ||
+        expertData.requires_visa_sponsorship === false
+          ? expertData.requires_visa_sponsorship
+          : undefined,
       workPreference: expertData.work_preference,
       workingTimezones: expertData.working_timezones,
       employmentType: expertData.employment_type,
@@ -971,6 +1004,38 @@ function ExpertSettingsPageContent() {
                   { value: 'hybrid', label: 'Hybrid (Some onsite required)' },
                   { value: 'onsite', label: 'Onsite Only' },
                   { value: 'flexible', label: 'Flexible' },
+                ]}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Authorized to work in the US?"
+              name="usWorkAuthorized"
+              extra="Used by the browser extension to autofill job applications (Yes/No)."
+            >
+              <Select
+                allowClear
+                placeholder="Not set"
+                size="large"
+                options={[
+                  { value: true, label: 'Yes' },
+                  { value: false, label: 'No' },
+                ]}
+              />
+            </Form.Item>
+
+            <Form.Item
+              label="Require visa sponsorship?"
+              name="requiresVisaSponsorship"
+              extra="e.g. H-1B, O-1 — used for autofill on application forms."
+            >
+              <Select
+                allowClear
+                placeholder="Not set"
+                size="large"
+                options={[
+                  { value: true, label: 'Yes' },
+                  { value: false, label: 'No' },
                 ]}
               />
             </Form.Item>

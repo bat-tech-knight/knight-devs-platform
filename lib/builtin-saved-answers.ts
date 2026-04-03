@@ -70,3 +70,57 @@ export async function syncBuiltinSavedAnswersFromProfile(
     );
   }
 }
+
+const VISA_BUILTIN: { builtinKey: string; label: string }[] = [
+  {
+    builtinKey: "us_work_authorized",
+    label: "Legally authorized to work in the United States?",
+  },
+  {
+    builtinKey: "requires_visa_sponsorship",
+    label: "Require employment visa sponsorship?",
+  },
+];
+
+/**
+ * Sync Yes/No answers for US work authorization and visa sponsorship to builtin saved answers
+ * (extension field-assist + saved-answers merge).
+ */
+export async function syncVisaBuiltinSavedAnswers(
+  supabase: SupabaseClient,
+  profileId: string,
+  usWorkAuthorized: boolean | null | undefined,
+  requiresVisaSponsorship: boolean | null | undefined
+): Promise<void> {
+  const byKey: Record<string, boolean | null | undefined> = {
+    us_work_authorized: usWorkAuthorized,
+    requires_visa_sponsorship: requiresVisaSponsorship,
+  };
+
+  for (const row of VISA_BUILTIN) {
+    const qk = buildBuiltinQuestionKey(row.builtinKey);
+    const ans = byKey[row.builtinKey];
+    if (ans !== true && ans !== false) {
+      await supabase
+        .from("saved_application_answers")
+        .delete()
+        .eq("profile_id", profileId)
+        .eq("question_key", qk);
+      continue;
+    }
+
+    const answer_text = ans ? "Yes" : "No";
+    await supabase.from("saved_application_answers").upsert(
+      {
+        profile_id: profileId,
+        question_key: qk,
+        label_snapshot: row.label,
+        answer_text,
+        source: "knightdevs",
+        hostname: "builtin",
+        external_field_id: row.builtinKey,
+      },
+      { onConflict: "profile_id,question_key" }
+    );
+  }
+}
