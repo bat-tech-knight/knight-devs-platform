@@ -39,8 +39,12 @@ export function useJobClose(): UseJobCloseReturn {
         .single();
 
       if (existing) {
-        // Already closed, just update local state
-        setClosedJobIds(prev => new Set(prev).add(jobId));
+        setClosedJobIds(prev => {
+          if (prev.has(jobId)) return prev;
+          const next = new Set(prev);
+          next.add(jobId);
+          return next;
+        });
         return;
       }
 
@@ -55,8 +59,12 @@ export function useJobClose(): UseJobCloseReturn {
 
       if (insertError) throw insertError;
 
-      // Update local state
-      setClosedJobIds(prev => new Set(prev).add(jobId));
+      setClosedJobIds(prev => {
+        if (prev.has(jobId)) return prev;
+        const next = new Set(prev);
+        next.add(jobId);
+        return next;
+      });
     } catch (err) {
       console.error('Error closing job:', err);
       setError(err instanceof Error ? err.message : 'Failed to close job');
@@ -156,12 +164,23 @@ export function useJobClose(): UseJobCloseReturn {
       if (fetchError) throw fetchError;
 
       const closedIds = (data || []).map(item => item.job_id);
-      
-      // Update local state
+
+      // Only update state when membership changes. A new Set() on every fetch
+      // would change `closedJobIds` by reference, which recreates `fetchJobs` in
+      // use-candidate-discover and retriggers effects that call fetchJobs again.
       setClosedJobIds(prev => {
-        const newSet = new Set(prev);
-        closedIds.forEach(id => newSet.add(id));
-        return newSet;
+        if (closedIds.length === 0) {
+          return prev;
+        }
+        let changed = false;
+        const next = new Set(prev);
+        for (const id of closedIds) {
+          if (!next.has(id)) {
+            next.add(id);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
       });
 
       return closedIds;
